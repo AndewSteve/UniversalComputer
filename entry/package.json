@@ -1,0 +1,5 @@
+{
+  "devDependencies": {
+    "@types/mathjs": "^9.4.2"
+  }
+}
