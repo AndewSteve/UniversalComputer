@@ -6,9 +6,13 @@ import { EditLogic } from './core/EditLogic';
 import { RenderLogic } from './core/RenderLogic';
 import { SelectionLogic } from './core/SelectionLogic';
 import { HistoryLogic, EditorSnapshot } from './core/HistoryLogic'; // 假设你也把 History 拆了
+import { CalculationService } from './core/CalculationService';
 
 @Observed
 export class CalculatorStore {
+  // 专门用于显示在预览区的结果
+  public previewResult: string = "";
+
   public tokens: FormulaToken[] = [];
   public cursorIndex: number = 0;
 
@@ -19,9 +23,18 @@ export class CalculatorStore {
   // 历史管理 (可以直接在这里 new，或者也做成 static 工具)
   private historyLogic: HistoryLogic = new HistoryLogic();
 
+  // 【新增】角度模式状态 (false: Rad, true: Deg)
+  public isDegree: boolean = false;
+
   constructor() {
     this.tokens = [];
     this.cursorIndex = 0;
+  }
+
+  public toggleAngleMode() {
+    this.isDegree = !this.isDegree;
+    // 切换后立即重新触发计算
+    this.tryRealTimeCalculation();
   }
 
   public handleInput(key: KeyModel) {
@@ -38,7 +51,10 @@ export class CalculatorStore {
       if (this.hasSelection()) {
         this.cursorIndex = EditLogic.deleteRange(this.tokens, this.selectionStart, this.selectionEnd);
         this.clearSelection();
-        if (key.action === KeyAction.DELETE) return;
+        if (key.action === KeyAction.DELETE) {
+          this.tryRealTimeCalculation();
+          return;
+        }
       }
     }
 
@@ -64,6 +80,17 @@ export class CalculatorStore {
         this.cursorIndex = CursorLogic.calculateMove(this.tokens, this.cursorIndex, 1);
         break;
 
+      // 【新增】上下导航
+      case KeyAction.NAV_UP:
+        this.clearSelection();
+        this.cursorIndex = CursorLogic.moveVertically(this.tokens, this.cursorIndex, -1);
+        break;
+
+      case KeyAction.NAV_DOWN:
+        this.clearSelection();
+        this.cursorIndex = CursorLogic.moveVertically(this.tokens, this.cursorIndex, 1);
+        break;
+
       case KeyAction.CLEAR:
         this.tokens = [];
         this.cursorIndex = 0;
@@ -78,6 +105,7 @@ export class CalculatorStore {
         console.info("Execute Calculation (Not Implemented)");
         break;
     }
+    this.tryRealTimeCalculation();
   }
 
   // Undo/Redo 代理
@@ -156,6 +184,36 @@ export class CalculatorStore {
     );
     this.selectionStart = newRange.start;
     this.selectionEnd = newRange.end;
+  }
+
+  /**
+   * 尝试实时计算
+   */
+  private tryRealTimeCalculation() {
+    // 如果没有 Token，清空预览
+    if (this.tokens.length === 0) {
+      this.previewResult = "";
+      return;
+    }
+
+    // 调用服务
+    const result = CalculationService.evaluateRealTime(this.tokens, this.isDegree);
+
+    if (result !== null) {
+      // 计算成功，显示 "= 结果"
+      this.previewResult = "= " + result;
+    } else {
+      // 计算失败（公式未完成或包含复杂符号），清空预览或显示占位
+      // 这里留空，让 UI 显示空白或者 "..."
+      this.previewResult = "";
+    }
+  }
+
+  // 处理 EXECUTE (点击右下角对钩)
+  // 这是用户强制要求计算，此时可以处理更复杂的逻辑 (比如调用 Python 后端，或本地更强的引擎)
+  public handleExecute() {
+    // TODO: 这里处理带有 \int, \sum 的复杂计算
+    console.info("Full calculation triggered");
   }
 }
 

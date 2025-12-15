@@ -7,7 +7,8 @@ export enum TokenType {
   BRACKET,    // (, ), {, } (黑色/灰色)
   OPERATOR,   // +, -, *, ^ (黑色)
   VARIABLE,   // x, y (黑色斜体)
-  CURSOR      // 虚拟光标
+  CURSOR,      // 虚拟光标
+  STRUCT_MARKER // 【新增】结构性标记 (定积分的 _ 和 ^)
 }
 
 // 【新增】：ArkTS 必须显式定义接口，不能用 { start: number, end: number }
@@ -46,6 +47,7 @@ export class FormulaToken {
       case TokenType.OPERATOR: return AppColors.TOKEN_GREY;
       case TokenType.BRACKET: return AppColors.TOKEN_GREY60;
       case TokenType.VARIABLE: return AppColors.TOKEN_DARK;
+      case TokenType.STRUCT_MARKER: return AppColors.TOKEN_GREY60;
       default: return AppColors.TOKEN_DARK;
     }
   }

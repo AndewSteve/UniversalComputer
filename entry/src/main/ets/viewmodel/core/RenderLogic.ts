@@ -24,9 +24,9 @@ export class RenderLogic {
         continue;
       }
 
-      // 2. 结构性运算符: ^ (上标), _ (下标)
-      // 如果给 ^ 上色，LaTeX 就会把它当成普通字符渲染，导致幂运算失效
-      if (value === '^' || value === '_') {
+      // 2. 【核心修改】结构性标记 (STRUCT_MARKER) 和 结构性运算符 (普通的 ^ _) 都不上色
+      // 否则 \textcolor{red}{^} 会导致 LaTeX 语法错误
+      if (token.type === TokenType.STRUCT_MARKER || value === '^' || value === '_') {
         latex += value;
         continue;
       }

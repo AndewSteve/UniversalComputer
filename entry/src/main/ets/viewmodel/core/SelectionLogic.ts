@@ -1,4 +1,5 @@
 import { FormulaToken, TokenType, ScopeRange } from '../../model/FormulaToken';
+import { StrategyUtils } from './strategies/StrategyUtils';
 
 export class SelectionLogic {
 
@@ -144,5 +145,70 @@ export class SelectionLogic {
       }
     }
     return null;
+  }
+
+  /**
+   * 寻找光标左侧的逻辑单元 (Preceding Block)
+   * 用于倒数、除法等操作
+   * @returns ScopeRange: {start, end}，如果没有则返回 start=end=cursor
+   */
+  static findPrecedingBlock(tokens: FormulaToken[], cursorIndex: number): ScopeRange {
+    if (cursorIndex === 0) return { start: 0, end: 0 };
+
+    let start = cursorIndex - 1;
+    const prevToken = tokens[start];
+
+    // 1. 如果是右括号 } 或 ] 或 ) 【新增 )】
+    if (prevToken.value === '}' || prevToken.value === ']' || prevToken.value === ')') {
+      // 找到匹配的左括号
+      const openIndex = StrategyUtils.findMatchingOpen(tokens, start);
+
+      if (openIndex !== -1) {
+        start = openIndex;
+
+        // 回溯检查 (只针对 })
+        if (prevToken.value === '}' && start > 0 && tokens[start - 1].value === '}') {
+          // ... (保持原来的 \frac 回溯逻辑) ...
+          const firstArgOpen = StrategyUtils.findMatchingOpen(tokens, start - 1);
+          if (firstArgOpen > 0) {
+            const possibleCmd = tokens[firstArgOpen - 1];
+            if (possibleCmd.value === '\\frac') {
+              start = firstArgOpen;
+            }
+          }
+        }
+
+        // 检查前面是否有 Command
+        if (start > 0) {
+          const possibleCmd = tokens[start - 1];
+          // 注意：通常 (33) 前面没有 Command，除非是 \sin(33)。
+          // 如果是 \sin(33)，我们希望倒数变成 \frac{1}{\sin(33)}，所以这里包含 Command 是对的。
+          if (possibleCmd.type === TokenType.COMMAND || possibleCmd.type === TokenType.OPERATOR) {
+            start--;
+          }
+        }
+      }
+    }
+    // 2. 数字连续捕获
+    else if (prevToken.type === TokenType.NUMBER) {
+      while (start > 0 && tokens[start - 1].type === TokenType.NUMBER) {
+        start--;
+      }
+    }
+
+    return { start, end: cursorIndex };
+  }
+
+  // 复用或移动 findMatchingOpenBracket 到这里作为 public/private static
+  public static findMatchingOpenBracket(tokens: FormulaToken[], closeIndex: number): number {
+    let balance = 1;
+    for (let i = closeIndex - 1; i >= 0; i--) {
+      if (tokens[i].value === '}' || tokens[i].value === ']') balance++;
+      else if (tokens[i].value === '{' || tokens[i].value === '[') {
+        balance--;
+        if (balance === 0) return i;
+      }
+    }
+    return -1;
   }
 }

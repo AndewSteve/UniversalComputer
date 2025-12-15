@@ -5,6 +5,8 @@ import { TokenType } from './FormulaToken';
 // ============================================================
 // 2. 键位模型定义
 // ============================================================
+
+
 export enum KeyAction {
   INSERT,
   DELETE,
@@ -12,7 +14,9 @@ export enum KeyAction {
   NAV_LEFT,
   NAV_RIGHT,
   EXECUTE,
-  SELECT_EXPAND
+  SELECT_EXPAND,
+  NAV_DOWN,
+  NAV_UP
 }
 
 // 【新增】：模板单元接口

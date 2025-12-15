@@ -33,16 +33,16 @@ export const MAPLE_KEYS: KeyModel[] = [
   // --- Row 1 ---
   {
     label: '÷',
-    value: '\\div',
+    value: '/', // 逻辑上我们用 / 代表构造分数
     action: KeyAction.INSERT,
-    insertType: TokenType.OPERATOR,
+    // 不再作为 OPERATOR 插入，而是触发 EditLogic.division
+    template: [], // 清空模板，交由逻辑处理
     bgColor: AppColors.BG_DARK,
-    textColor: AppColors.TEXT_WHITE, // 按钮是白色
-    insertColor: AppColors.TEXT_BLUE // 【配置】：插入公式后是蓝色
+    textColor: AppColors.TEXT_WHITE
   },
   {
     label: '×',
-    value: '\\times',
+    value: '\\cdot', // 【修改】: 默认使用点乘
     action: KeyAction.INSERT,
     insertType: TokenType.OPERATOR,
     bgColor: AppColors.BG_DARK,
@@ -122,10 +122,10 @@ export const MAPLE_KEYS: KeyModel[] = [
     ]
   },
 
-  { label: '↑', value: '', action: KeyAction.EXECUTE, bgColor: AppColors.BG_DARK, textColor: AppColors.TEXT_WHITE },
+  { label: '↑', value: 'UP', action: KeyAction.NAV_UP, bgColor: AppColors.BG_DARK, textColor: AppColors.TEXT_WHITE }, // 需在 KeyAction 加 NAV_UP
   {
     label: '1/x',
-    value: '1/x',
+    value: 'reciprocal', // 这是一个特殊标记
     action: KeyAction.INSERT,
     bgColor: AppColors.BG_DARK,
     textColor: AppColors.TEXT_WHITE,
@@ -153,6 +153,6 @@ export const MAPLE_KEYS: KeyModel[] = [
   { label: '.', value: '.', action: KeyAction.INSERT, insertType: TokenType.NUMBER, bgColor: AppColors.BG_GREY, textColor: AppColors.TEXT_WHITE },
   { label: ',', value: ',', action: KeyAction.INSERT, insertType: TokenType.NUMBER, bgColor: AppColors.BG_DARK, textColor: AppColors.TEXT_WHITE },
   { label: '=', value: '=', action: KeyAction.EXECUTE, bgColor: AppColors.BG_DARK, textColor: AppColors.TEXT_WHITE },
-  { label: '↓', value: '', action: KeyAction.EXECUTE, bgColor: AppColors.BG_DARK, textColor: AppColors.TEXT_WHITE },
+  { label: '↓', value: 'DOWN', action: KeyAction.NAV_DOWN, bgColor: AppColors.BG_DARK, textColor: AppColors.TEXT_WHITE }, // 需在 KeyAction 加 NAV_DOWN
   { label: '✓', value: '', action: KeyAction.EXECUTE, bgColor: AppColors.BG_BLUE_BTN, textColor: AppColors.TEXT_WHITE },
 ];

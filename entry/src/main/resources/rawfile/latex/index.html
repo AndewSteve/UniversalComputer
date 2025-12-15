@@ -8,25 +8,53 @@
     <script src="./katex.min.js"></script>
 
     <style>
-        body {
-            margin: 0;
-            padding: 16px;
-            display: flex;
-            justify-content: flex-start; /* 左对齐 */
-            align-items: center;
+        /* 1. 全局样式 */
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100%;
+            height: auto;
             min-height: 100vh;
-            background-color: transparent;
-            box-sizing: border-box;
-            overflow-x: auto;
+            background-color: #ffffff;
+            overflow-x: hidden; /* 禁止横向滚动，强制换行 */
             overflow-y: hidden;
         }
+
+        /* 2. 容器样式 */
         #formula-container {
-            font-size: 2.5em; /* 调整字体大小 */
+            /* 【修改 1】缩小字体: 2.0 -> 1.5em (满足你的要求) */
+            font-size: 1.5em;
+
             color: #000;
-            min-width: 10px;
-            min-height: 50px;
+            width: 100%;
+            height: auto;
+            box-sizing: border-box;
+
+            /* 【修改 2】开启换行 (解决 9999... 不换行问题) */
+            white-space: normal;
+            word-wrap: break-word;
+            word-break: break-all; /* 允许在数字中间暴力折行 */
+
+            text-align: left;
+            padding: 8px; /* 稍微给一点点呼吸空间，不再是 77px 那么夸张 */
+            margin: 0;
+            line-height: 1.5; /* 增加行高，防止换行后上下重叠 */
         }
-        /* 光标闪烁动画 */
+
+        /* 3. KaTeX 样式微调 */
+        .katex {
+            font-size: 1em !important;
+            text-align: left !important;
+            /* 允许内部换行 */
+            white-space: normal !important;
+        }
+
+        /* 根号和分数内部尽量保持完整，但如果实在太长也没办法 */
+        .base {
+            width: auto !important;
+        }
+
+        /* 光标 */
         .cursor-blink {
             color: #FF0055;
             animation: blink 1s step-end infinite;
@@ -35,52 +63,39 @@
             display: inline-block;
             vertical-align: middle;
             height: 1em;
-            border-right: 2px solid #FF0055; /* 用边框模拟光标更稳定 */
+            border-right: 2px solid #FF0055;
         }
-        @keyframes blink {
-            from, to { opacity: 1; }
-            50% { opacity: 0; }
-        }
-        .katex-error { color: red; font-size: 0.5em; }
+        @keyframes blink { from, to { opacity: 1; } 50% { opacity: 0; } }
     </style>
 </head>
 <body>
 <div id="formula-container"></div>
 
 <script>
-    // 将函数挂载到 window 对象上，确保 ArkTS 能找到它
     window.updateFormula = function(latex) {
         const container = document.getElementById('formula-container');
         if (!container) return;
 
+        container.innerHTML = '';
+
         try {
-            // 如果为空，清空内容
-            if (!latex) {
-                container.innerHTML = '';
-                return;
-            }
+            if (!latex) return;
 
             katex.render(latex, container, {
                 throwOnError: false,
-                displayMode: true,
+                // 【核心修改】关闭 displayMode
+                // 这样 KaTeX 就不会自作主张加 padding，也不会强制居中
+                displayMode: false,
                 strict: false,
-                output: 'html', // RISC-V 上如果 WebGL/Canvas 有问题，强制用 HTML 渲染最稳
-                trust: true     // 允许 \textcolor 等命令
+                output: 'html',
+                trust: true,
+                // fleqn 在 displayMode: false 下无效，所以不需要担心它带来的 padding
             });
 
-            // 渲染后滚动到最右侧
-            setTimeout(() => {
-               window.scrollTo(document.body.scrollWidth, 0);
-            }, 10);
-
         } catch (e) {
-            console.error("KaTeX Render Error: " + e.message);
-            container.innerText = "Error";
+            console.error(e.message);
         }
     }
-
-    // 页面加载完毕打印日志
-    console.log("Local Latex Page Loaded.");
 </script>
 </body>
 </html>

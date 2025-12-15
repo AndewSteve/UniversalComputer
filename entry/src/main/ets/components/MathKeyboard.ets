@@ -1,10 +1,14 @@
 // components/MathKeyboard.ets
 import { display } from '@kit.ArkUI'; // 【新增】引入 display 模块
-import { KeyModel } from '../model/KeyModel';
+import { KeyModel,KeyAction } from '../model/KeyModel';
 import { MathKey } from './MathKey';
 import { CalculatorStore } from '../viewmodel/CalculatorStore';
 import { PopupUiState, popupUiState } from '../viewmodel/PopupUiState';
+import { AppColors } from '../common/values/AppColors';
+
 import { MAPLE_KEYS } from '../model/KeyConfig';
+import { FIGURE_KEYS } from '../model/FigureConfig';
+
 
 // 常量定义
 const CELL_WIDTH = 50;
@@ -20,6 +24,9 @@ interface MyPosition {
 export struct MathKeyboard {
   @ObjectLink store: CalculatorStore;
   @State popupState: PopupUiState = popupUiState;
+
+  // 【新增】键盘模式状态
+  @State isSymbolMode: boolean = false;
 
   // 【新增】键盘容器自身的全局位置，用于坐标修正
   @State keyboardGlobalPos: MyPosition = { x: 0, y: 0 };
@@ -80,12 +87,44 @@ export struct MathKeyboard {
     return targetGlobalY - (this.keyboardGlobalPos.y || 0);
   }
 
+  // 【核心】：统一处理按键点击
+  private onKeyClick(key: KeyModel) {
+    // 1. 如果是手动返回键 (我们在配置里加了个 value='BACK' 的占位)
+    // 虽然 KeyAction 可能是 NAV_DOWN，但我们可以特判
+    if (key.value === 'BACK') {
+      this.isSymbolMode = false;
+      return;
+    }
+
+    // 2. 执行 Store 的操作
+    this.store.handleInput(key);
+
+    // 3. 【核心逻辑】：如果在符号模式下，且执行的是插入操作，立即切回数字键盘
+    if (this.isSymbolMode && key.action === KeyAction.INSERT) {
+      // 为了体验稍微好一点，也可以加个小延时，或者直接切回
+      this.isSymbolMode = false;
+    }
+  }
+
+  // 【辅助】：获取当前应该显示的键位列表
+  private getCurrentKeys(): KeyModel[] {
+    return this.isSymbolMode ? FIGURE_KEYS : MAPLE_KEYS;
+  }
+
   build() {
     Stack() {
       Column() {
         // --- Top Bar (逻辑不变) ---
         Row() {
-          this.TopBarButton("f∫∑", () => { })
+          // 【核心修改】：使用组件 TabButton 替代原来的 Builder
+          TabButton({
+            text: "f∫∑",
+            isActive: this.isSymbolMode, // 绑定 @State，变化时绝对会刷新
+            action: () => {
+              this.isSymbolMode = !this.isSymbolMode;
+            }
+          })
+
           this.TopBarButton("abc", () => { })
           Blank()
           this.TopBarButton("↶", () => { this.store.undo(); })
@@ -100,13 +139,15 @@ export struct MathKeyboard {
 
         // --- Grid Area ---
         Grid() {
-          ForEach(MAPLE_KEYS, (keyItem: KeyModel) => {
+          // 使用函数获取数据源
+          ForEach(this.getCurrentKeys(), (keyItem: KeyModel) => {
             GridItem() {
               MathKey({
                 item: keyItem,
                 customBgColor: keyItem.bgColor,
                 customTextColor: keyItem.textColor || '#FFFFFF',
-                onKeyPress: (k): void => this.store.handleInput(k)
+                // 【修改】：绑定到新的 onKeyClick
+                onKeyPress: (k): void => this.onKeyClick(k)
               })
             }
           })
@@ -168,13 +209,41 @@ export struct MathKeyboard {
     .zIndex(999)
   }
 
-  @Builder TopBarButton(text: string, action: () => void) {
+  // 修改前: @Builder TopBarButton(text: string, action: () => void, isActive: boolean = false)
+  // 修改后: 接收确定的颜色字符串
+  @Builder TopBarButton(text: string, action: () => void, textColor: string = '#FFFFFF') {
     Button({ type: ButtonType.Normal, stateEffect: true }) {
-      Text(text).fontColor('#FFFFFF').fontSize(16).fontWeight(FontWeight.Medium)
+      Text(text)
+        .fontColor(textColor) // 直接使用传入的颜色
+        .fontSize(16)
+        .fontWeight(FontWeight.Medium)
     }
     .backgroundColor('transparent')
     .width(50)
     .height('100%')
     .onClick(() => { action(); })
+  }
+}
+
+@Component
+struct TabButton {
+  @Prop text: string;
+  @Prop isActive: boolean; // 接收高亮状态
+  // ArkTS 中组件传回调需要这样定义
+  action: () => void = () => {};
+
+  build() {
+    Button({ type: ButtonType.Normal, stateEffect: true }) {
+      Text(this.text)
+        .fontColor(this.isActive ? '#2D9CDB' : '#FFFFFF') // 强制根据 isActive 变色
+        .fontSize(16)
+        .fontWeight(FontWeight.Medium)
+    }
+    .backgroundColor('transparent')
+    .width(50)
+    .height('100%')
+    .onClick(() => {
+      this.action();
+    })
   }
 }

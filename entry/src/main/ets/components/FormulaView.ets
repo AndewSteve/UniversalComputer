@@ -1,42 +1,82 @@
 // components/FormulaView.ets
 import { CalculatorStore } from '../viewmodel/CalculatorStore';
 import { FormulaToken, TokenType } from '../model/FormulaToken';
+import { AppColors } from '../common/values/AppColors';
+import { pasteboard } from '@kit.BasicServicesKit';
+import { promptAction } from '@kit.ArkUI';
 
 @Component
 export struct FormulaView {
   @ObjectLink store: CalculatorStore;
 
   build() {
-    Column() {
-      Text() {
-        ForEach(this.generateRenderList(), (item: FormulaToken) => {
-          if (item.type === TokenType.CURSOR) {
-            // 光标
-            Span('|')
-              .fontColor('#FF0055')
-              .fontSize(32)
-              .fontWeight(FontWeight.Lighter)
-          } else {
-            // 普通 Token
-            Span(item.value)
-              .fontColor(item.getColor())
-              .fontSize(32)
-              .fontWeight(item.type === TokenType.COMMAND ? FontWeight.Medium : FontWeight.Regular)
-              // 选区背景高亮 (淡蓝色)
-              .textBackgroundStyle({
-                color: this.isTokenSelected(item) ? '#402D9CDB' : 'transparent'
-              })
+    Stack({ alignContent: Alignment.TopEnd }) { // 使用 Stack 放置悬浮按钮
+
+      // 1. 原有的 Token 列表视图
+      Scroll() {
+        Column() {
+          Text() {
+            ForEach(this.generateRenderList(), (item: FormulaToken) => {
+              // ... 保持原有 Span 渲染逻辑 ...
+              if (item.type === TokenType.CURSOR) {
+                Span('|').fontColor('#FF0055').fontSize(20).fontWeight(FontWeight.Lighter)
+              } else {
+                Span(item.value)
+                  .fontColor(item.getColor())
+                  .fontSize(20)
+                  .fontWeight(item.type === TokenType.COMMAND ? FontWeight.Medium : FontWeight.Regular)
+                  .textBackgroundStyle({ color: this.isTokenSelected(item) ? '#402D9CDB' : 'transparent' })
+              }
+            }, (item: FormulaToken) => item.id)
           }
-        }, (item: FormulaToken) => item.id) // 使用唯一ID作为Key
+          .width('100%')
+          .textAlign(TextAlign.Start)
+        }
+        .width('100%')
+        .alignItems(HorizontalAlign.Start)
+        .padding({ left: 12, right: 12, top: 16, bottom: 16 })
       }
       .width('100%')
-      .textAlign(TextAlign.Start) // 左对齐
-      .maxLines(10) // 允许多行
+      .height('100%')
+      .align(Alignment.TopStart)
+
+      // 2. 【新增】复制按钮 (悬浮在右上角)
+      Button({ type: ButtonType.Normal, stateEffect: true }) {
+        Row() {
+          // 这里可以用 SymbolGlyph 或者 Text "Copy"
+          Text("Copy")
+            .fontSize(12)
+            .fontColor(Color.White)
+        }
+      }
+      .backgroundColor('#99000000') // 半透明黑
+      .borderRadius(12)
+      .height(24)
+      .padding({ left: 8, right: 8 })
+      .margin({ top: 8, right: 8 })
+      .onClick(() => {
+        this.copyLatex();
+      })
+
     }
     .width('100%')
-    .alignItems(HorizontalAlign.Start)
-    .padding({ left: 16, right: 16, top: 20, bottom: 20 })
-    .backgroundColor('#FFFFFF')
+    .height('100%')
+    .backgroundColor('#FAFAFA')
+  }
+
+  // 复制逻辑
+  private copyLatex() {
+    const latex = this.store.getDisplayLatex();
+    const pasteData = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, latex);
+    pasteboard.getSystemPasteboard().setData(pasteData).catch(() => {
+      // TODO: Implement error handling.
+    }).then(() => {
+      try {
+        promptAction.showToast({ message: 'LaTeX Copied!', duration: 1500 });
+      } catch (error) {
+        // TODO: Implement error handling.
+      }
+    });
   }
 
   // 1. 判断 Token 是否在 Store 的选区内
