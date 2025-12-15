@@ -15,6 +15,8 @@ export class AppColors {
   static readonly TEXT_WHITE: string = '#FFFFFF';
   static readonly TEXT_BLACK: string = '#1F1F1F';
 
+  static readonly CURSOR_RED: string = '#FF0055';
+
   // --- 语法高亮 (Syntax Highlighting) ---
   static readonly TEXT_BLUE: string = '#5AC8FA';    // 命令/特殊符号 (\sqrt, \div)
   static readonly TEXT_YELLOW: string = '#FFD700';  // 花括号 {}

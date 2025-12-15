@@ -1,117 +1,118 @@
 // viewmodel/CalculatorStore.ts
-import { FormulaToken, TokenType, ScopeRange } from '../model/FormulaToken';
+import { FormulaToken, ScopeRange } from '../model/FormulaToken';
 import { KeyModel, KeyAction } from '../model/KeyModel';
-import { TokenFactory } from '../model/TokenFactory';
-
-// 【修复】：必须定义为 interface，不能在代码里写 { ... }
-export interface EditorSnapshot {
-  tokens: FormulaToken[];
-  cursorIndex: number;
-  selectionStart: number;
-  selectionEnd: number;
-}
-
-const MAX_HISTORY = 50;
+import { CursorLogic } from './core/CursorLogic';
+import { EditLogic } from './core/EditLogic';
+import { RenderLogic } from './core/RenderLogic';
+import { SelectionLogic } from './core/SelectionLogic';
+import { HistoryLogic, EditorSnapshot } from './core/HistoryLogic'; // 假设你也把 History 拆了
 
 @Observed
 export class CalculatorStore {
   public tokens: FormulaToken[] = [];
   public cursorIndex: number = 0;
 
+  // 选区相关
   public selectionStart: number = -1;
   public selectionEnd: number = -1;
 
-  // 使用显式接口类型
-  private historyStack: EditorSnapshot[] = [];
-  private redoStack: EditorSnapshot[] = [];
+  // 历史管理 (可以直接在这里 new，或者也做成 static 工具)
+  private historyLogic: HistoryLogic = new HistoryLogic();
 
   constructor() {
     this.tokens = [];
     this.cursorIndex = 0;
   }
 
-  public hasSelection(): boolean {
-    return this.selectionStart !== -1 && this.selectionEnd !== -1 && this.selectionStart < this.selectionEnd;
-  }
-
-  public isIndexSelected(index: number): boolean {
-    if (!this.hasSelection()) return false;
-    return index >= this.selectionStart && index < this.selectionEnd;
-  }
-
   public handleInput(key: KeyModel) {
-    if (this.isModificationAction(key.action)) {
-      this.saveSnapshot();
+    // 1. 处理历史快照 (Undo/Redo 前置逻辑)
+    if (this.isModification(key.action)) {
+      this.historyLogic.pushSnapshot({
+        tokens: [...this.tokens],
+        cursorIndex: this.cursorIndex,
+        selectionStart: this.selectionStart,
+        selectionEnd: this.selectionEnd
+      });
 
+      // 处理选区覆盖
       if (this.hasSelection()) {
-        this.deleteSelection();
-        // 如果是删除键，删完选区就结束了
-        if (key.action === KeyAction.DELETE) {
-          return;
-        }
+        this.cursorIndex = EditLogic.deleteRange(this.tokens, this.selectionStart, this.selectionEnd);
+        this.clearSelection();
+        if (key.action === KeyAction.DELETE) return;
       }
     }
 
+    // 2. 路由分发
     switch (key.action) {
       case KeyAction.INSERT:
-        this.insertToken(key);
+        // 委托给 EditLogic
+        this.cursorIndex = EditLogic.insert(this.tokens, this.cursorIndex, key);
         break;
+
       case KeyAction.DELETE:
-        this.backspace();
+        this.cursorIndex = EditLogic.backspace(this.tokens, this.cursorIndex);
         break;
-      case KeyAction.CLEAR:
-        this.clearAll();
-        break;
+
       case KeyAction.NAV_LEFT:
         this.clearSelection();
-        this.moveCursor(-1);
+        // 委托给 CursorLogic
+        this.cursorIndex = CursorLogic.calculateMove(this.tokens, this.cursorIndex, -1);
         break;
+
       case KeyAction.NAV_RIGHT:
         this.clearSelection();
-        this.moveCursor(1);
+        this.cursorIndex = CursorLogic.calculateMove(this.tokens, this.cursorIndex, 1);
         break;
+
+      case KeyAction.CLEAR:
+        this.tokens = [];
+        this.cursorIndex = 0;
+        this.clearSelection();
+        break;
+
       case KeyAction.SELECT_EXPAND:
+        // 选区扩展逻辑比较复杂，可以保留在这里，或者提取到 SelectionLogic.ts
         this.expandSelection();
         break;
       case KeyAction.EXECUTE:
-        console.info("Execute: " + this.getRawLatex());
+        console.info("Execute Calculation (Not Implemented)");
         break;
     }
   }
 
-  private insertToken(key: KeyModel) {
-    // 显式声明数组类型
-    const tokenRes = TokenFactory.createTokens(key)
-    this.tokens.splice(this.cursorIndex, 0, ...tokenRes.tokens);
-    this.cursorIndex += tokenRes.offset;
+  // Undo/Redo 代理
+  public undo() {
+    const state = this.historyLogic.undo(this.getCurrentSnapshot());
+    if (state) this.restoreState(state);
   }
 
-  private backspace() {
-    if (this.cursorIndex > 0) {
-      this.tokens.splice(this.cursorIndex - 1, 1);
-      this.cursorIndex--;
+  public redo() {
+    const state = this.historyLogic.redo(this.getCurrentSnapshot());
+    if (state) this.restoreState(state);
+  }
+
+  // 渲染代理
+  public getDisplayLatex(): string {
+    return RenderLogic.generateDisplayLatex(this.tokens, this.cursorIndex);
+  }
+
+  // --- 辅助方法 ---
+
+  private isModification(action: KeyAction): boolean {
+    return action === KeyAction.INSERT || action === KeyAction.DELETE || action === KeyAction.CLEAR;
+  }
+
+  public isIndexSelected(index: number): boolean {
+    // 如果没有选区，直接返回 false
+    if (!this.hasSelection()) {
+      return false;
     }
+    // 判断 index 是否在 [start, end) 区间内
+    return index >= this.selectionStart && index < this.selectionEnd;
   }
 
-  private deleteSelection() {
-    if (!this.hasSelection()) return;
-    const count = this.selectionEnd - this.selectionStart;
-    this.tokens.splice(this.selectionStart, count);
-    this.cursorIndex = this.selectionStart;
-    this.clearSelection();
-  }
-
-  public clearAll() {
-    this.tokens = [];
-    this.cursorIndex = 0;
-    this.clearSelection();
-  }
-
-  private moveCursor(delta: number) {
-    const newIndex = this.cursorIndex + delta;
-    if (newIndex >= 0 && newIndex <= this.tokens.length) {
-      this.cursorIndex = newIndex;
-    }
+  private hasSelection(): boolean {
+    return this.selectionStart !== -1 && this.selectionEnd !== -1 && this.selectionStart < this.selectionEnd;
   }
 
   private clearSelection() {
@@ -119,171 +120,43 @@ export class CalculatorStore {
     this.selectionEnd = -1;
   }
 
-  // ==========================================
-  // 智能选区逻辑
-  // ==========================================
+  public clearAll() {
+    // 1. 如果需要支持“撤销清空”，在这里保存快照
+    this.historyLogic.pushSnapshot(this.getCurrentSnapshot());
 
+    // 2. 执行清空
+    this.tokens = [];
+    this.cursorIndex = 0;
+    this.clearSelection();
+  }
+
+  private getCurrentSnapshot(): EditorSnapshot {
+    return {
+      tokens: [...this.tokens],
+      cursorIndex: this.cursorIndex,
+      selectionStart: this.selectionStart,
+      selectionEnd: this.selectionEnd
+    };
+  }
+
+  private restoreState(state: EditorSnapshot) {
+    this.tokens = state.tokens;
+    this.cursorIndex = state.cursorIndex;
+    this.selectionStart = state.selectionStart;
+    this.selectionEnd = state.selectionEnd;
+  }
+
+  // expandSelection 逻辑暂时保留或同样移出
   private expandSelection() {
-    if (this.selectionStart === 0 && this.selectionEnd === this.tokens.length) {
-      this.clearSelection();
-      return;
-    }
-
-    let newStart = -1;
-    let newEnd = -1;
-
-    if (!this.hasSelection()) {
-      // 使用 ScopeRange 接口接收返回值
-      const scope: ScopeRange = this.findScope(this.cursorIndex);
-      newStart = scope.start;
-      newEnd = scope.end;
-
-      if (newStart === newEnd) {
-        if (this.cursorIndex > 0) {
-          newStart = this.cursorIndex - 1;
-          newEnd = this.cursorIndex;
-        } else {
-          newStart = 0;
-          newEnd = this.tokens.length;
-        }
-      }
-    } else {
-      const cmdWrapper: ScopeRange | null = this.findCommandWrapper(this.selectionStart, this.selectionEnd);
-      if (cmdWrapper !== null) {
-        newStart = cmdWrapper.start;
-        newEnd = cmdWrapper.end;
-      }
-      else {
-        const outerScope: ScopeRange = this.findScope(this.selectionStart);
-        if (outerScope.start < this.selectionStart || outerScope.end > this.selectionEnd) {
-          newStart = outerScope.start;
-          newEnd = outerScope.end;
-        } else {
-          newStart = 0;
-          newEnd = this.tokens.length;
-        }
-      }
-    }
-
-    this.selectionStart = newStart;
-    this.selectionEnd = newEnd;
-  }
-
-  // 【修复】：返回值类型明确为 ScopeRange
-  private findScope(index: number): ScopeRange {
-    let start = 0;
-    let end = this.tokens.length;
-
-    let balance = 0;
-    for (let i = index - 1; i >= 0; i--) {
-      if (this.tokens[i].value === '}') balance++;
-      if (this.tokens[i].value === '{') {
-        if (balance === 0) {
-          start = i + 1;
-          break;
-        }
-        balance--;
-      }
-    }
-
-    balance = 0;
-    for (let i = index; i < this.tokens.length; i++) {
-      if (this.tokens[i].value === '{') balance++;
-      if (this.tokens[i].value === '}') {
-        if (balance === 0) {
-          end = i;
-          break;
-        }
-        balance--;
-      }
-    }
-
-    // ArkTS 不允许直接返回字面量作为 ScopeRange，但如果结构匹配且不是复杂推断通常可以
-    // 为了保险，这里显式赋值
-    const result: ScopeRange = { start: start, end: end };
-    return result;
-  }
-
-  // 【修复】：返回值类型明确为 ScopeRange | null
-  private findCommandWrapper(s: number, e: number): ScopeRange | null {
-    if (s > 1 && e < this.tokens.length) {
-      const prevChar = this.tokens[s - 1];
-      const prevPrevChar = this.tokens[s - 2];
-      const nextChar = this.tokens[e];
-
-      if (prevChar.value === '{' && nextChar.value === '}' && prevPrevChar.type === TokenType.COMMAND) {
-        const result: ScopeRange = { start: s - 2, end: e + 1 };
-        return result;
-      }
-    }
-    return null;
-  }
-
-  private isModificationAction(action: KeyAction): boolean {
-    // 数组 include 在 ArkTS 中通常可用，但某些版本可能需要显式转换
-    const actions = [KeyAction.INSERT, KeyAction.DELETE, KeyAction.CLEAR];
-    return actions.indexOf(action) !== -1;
-  }
-
-  private saveSnapshot() {
-    // 显式构建对象
-    const snapshot: EditorSnapshot = {
-      tokens: [...this.tokens],
-      cursorIndex: this.cursorIndex,
-      selectionStart: this.selectionStart,
-      selectionEnd: this.selectionEnd
-    };
-    this.historyStack.push(snapshot);
-    if (this.historyStack.length > MAX_HISTORY) this.historyStack.shift();
-    this.redoStack = [];
-  }
-
-  public undo() {
-    if (this.historyStack.length === 0) return;
-
-    const snapshot: EditorSnapshot = {
-      tokens: [...this.tokens],
-      cursorIndex: this.cursorIndex,
-      selectionStart: this.selectionStart,
-      selectionEnd: this.selectionEnd
-    };
-    this.redoStack.push(snapshot);
-
-    const prev = this.historyStack.pop();
-    if (prev) this.restoreSnapshot(prev);
-  }
-
-  public redo() {
-    if (this.redoStack.length === 0) return;
-
-    const snapshot: EditorSnapshot = {
-      tokens: [...this.tokens],
-      cursorIndex: this.cursorIndex,
-      selectionStart: this.selectionStart,
-      selectionEnd: this.selectionEnd
-    };
-    this.historyStack.push(snapshot);
-
-    const next = this.redoStack.pop();
-    if (next) this.restoreSnapshot(next);
-  }
-
-  private restoreSnapshot(s: EditorSnapshot) {
-    this.tokens = s.tokens;
-    this.cursorIndex = s.cursorIndex;
-    this.selectionStart = s.selectionStart;
-    this.selectionEnd = s.selectionEnd;
-  }
-
-  public getRawLatex(): string {
-    let res = "";
-    // ArkTS 的 map/join 没问题，但为了稳健可以用 forEach
-    this.tokens.forEach(t => {
-      res += t.value;
-    });
-    return res;
+    const newRange: ScopeRange = SelectionLogic.expandSelection(
+      this.tokens,
+      this.cursorIndex,
+      this.selectionStart,
+      this.selectionEnd
+    );
+    this.selectionStart = newRange.start;
+    this.selectionEnd = newRange.end;
   }
 }
 
-// 导出单例
 export const calculatorStore = new CalculatorStore();

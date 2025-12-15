@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <link rel="stylesheet" href="./katex.min.css">
+    <script src="./katex.min.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 16px;
+            display: flex;
+            justify-content: flex-start; /* 左对齐 */
+            align-items: center;
+            min-height: 100vh;
+            background-color: transparent;
+            box-sizing: border-box;
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+        #formula-container {
+            font-size: 2.5em; /* 调整字体大小 */
+            color: #000;
+            min-width: 10px;
+            min-height: 50px;
+        }
+        /* 光标闪烁动画 */
+        .cursor-blink {
+            color: #FF0055;
+            animation: blink 1s step-end infinite;
+            font-weight: 100;
+            margin: 0 1px;
+            display: inline-block;
+            vertical-align: middle;
+            height: 1em;
+            border-right: 2px solid #FF0055; /* 用边框模拟光标更稳定 */
+        }
+        @keyframes blink {
+            from, to { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        .katex-error { color: red; font-size: 0.5em; }
+    </style>
+</head>
+<body>
+<div id="formula-container"></div>
+
+<script>
+    // 将函数挂载到 window 对象上，确保 ArkTS 能找到它
+    window.updateFormula = function(latex) {
+        const container = document.getElementById('formula-container');
+        if (!container) return;
+
+        try {
+            // 如果为空，清空内容
+            if (!latex) {
+                container.innerHTML = '';
+                return;
+            }
+
+            katex.render(latex, container, {
+                throwOnError: false,
+                displayMode: true,
+                strict: false,
+                output: 'html', // RISC-V 上如果 WebGL/Canvas 有问题，强制用 HTML 渲染最稳
+                trust: true     // 允许 \textcolor 等命令
+            });
+
+            // 渲染后滚动到最右侧
+            setTimeout(() => {
+               window.scrollTo(document.body.scrollWidth, 0);
+            }, 10);
+
+        } catch (e) {
+            console.error("KaTeX Render Error: " + e.message);
+            container.innerText = "Error";
+        }
+    }
+
+    // 页面加载完毕打印日志
+    console.log("Local Latex Page Loaded.");
+</script>
+</body>
+</html>
