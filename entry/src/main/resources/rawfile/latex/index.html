@@ -76,6 +76,7 @@
         const container = document.getElementById('formula-container');
         if (!container) return;
 
+
         container.innerHTML = '';
 
         try {
@@ -87,9 +88,8 @@
                 // 这样 KaTeX 就不会自作主张加 padding，也不会强制居中
                 displayMode: false,
                 strict: false,
-                output: 'html',
-                trust: true,
-                // fleqn 在 displayMode: false 下无效，所以不需要担心它带来的 padding
+                output: 'html', // RISC-V 上如果 WebGL/Canvas 有问题，强制用 HTML 渲染最稳
+                trust: true     // 允许 \textcolor 等命令 
             });
 
         } catch (e) {
