@@ -1,13 +1,27 @@
 {
   "app": {
-    "signingConfigs": [],
+    "signingConfigs": [
+      {
+        "name": "default",
+        "material": {
+          "certpath": "C:/Users/Momoi/.ohos/config/openharmony/default_UniversalComputer_I1rdTWFymJnGemyV_KtLad4HZPcKOQ6maBP20zUm0eE=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001A89CEDA2CD408743DC573DA7B315A8099D8123030CBC25BFF18FB1B4509FF31D7EB4F38BB185F",
+          "profile": "C:/Users/Momoi/.ohos/config/openharmony/default_UniversalComputer_I1rdTWFymJnGemyV_KtLad4HZPcKOQ6maBP20zUm0eE=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "C:/Users/Momoi/.ohos/config/openharmony/default_UniversalComputer_I1rdTWFymJnGemyV_KtLad4HZPcKOQ6maBP20zUm0eE=.p12",
+          "storePassword": "0000001ACCDB7FC3DA2F461BD3103B2E0DE932C50813CDDE80627FECFE15AFFB5DA529C5EB9D336899D3"
+        }
+      }
+    ],
     "products": [
       {
         "name": "default",
         "signingConfig": "default",
-        "targetSdkVersion": "6.0.0(20)",
-          "compatibleSdkVersion": "5.0.1(13)",
-            "runtimeOS":"HarmonyOS",
+        "compileSdkVersion": 12,
+        "targetSdkVersion": 12,
+        "compatibleSdkVersion": 12,
+        "runtimeOS": "OpenHarmony",
         "buildOption": {
           "strictMode": {
             "caseSensitiveCheck": true,
@@ -18,7 +32,7 @@
     ],
     "buildModeSet": [
       {
-          "name": "debug",
+        "name": "debug",
       },
       {
         "name": "release"
@@ -26,8 +40,7 @@
     ]
   },
   "modules": [
-
-  {
+    {
       "name": "entry",
       "srcPath": "./entry",
       "targets": [
@@ -38,5 +51,6 @@
           ]
         }
       ]
-    }]
+    }
+  ]
 }
