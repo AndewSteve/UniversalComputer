@@ -1,5 +1,6 @@
 // components/FormulaWebView.ets
 import { webview } from '@kit.ArkWeb';
+import { AppColors } from '../common/values/AppColors';
 
 @Component
 export struct FormulaWebView {
@@ -18,7 +19,7 @@ export struct FormulaWebView {
       })
         .width('100%')
         .height('100%')
-        .backgroundColor('transparent') // Web组件背景透明
+        .backgroundColor(Color.White) // Web组件背景透明
         .onConsole((event) => {
           // 方便在 Logcat 里看 JS 的报错
           console.info('[WebView Console]:', event?.message.getMessage());
@@ -35,7 +36,7 @@ export struct FormulaWebView {
         .fileAccess(true)
         .domStorageAccess(true)
     }
-    .backgroundColor('#FFFFFF') // 底层放个白色背景
+    .backgroundColor(AppColors.TEXT_WHITE) // 底层放个白色背景
   }
 
   onLatexChange() {
@@ -50,7 +51,9 @@ export struct FormulaWebView {
         escaped = escaped.replace(/\n/g, "");
 
         // 调用我们在 window 上挂载的函数
-        this.controller.runJavaScript(`window.updateFormula('${escaped}')`);
+        this.controller.runJavaScript(`window.updateFormula('${escaped}')`).catch(() => {
+          // TODO: Implement error handling.
+        });
       } catch (e) {
         console.error("ArkTS -> JS Error:", JSON.stringify(e));
       }

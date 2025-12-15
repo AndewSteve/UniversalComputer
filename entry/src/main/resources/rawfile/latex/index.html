@@ -15,7 +15,7 @@
             justify-content: flex-start; /* 左对齐 */
             align-items: center;
             min-height: 100vh;
-            background-color: transparent;
+            background-color: #ffffff;
             box-sizing: border-box;
             overflow-x: auto;
             overflow-y: hidden;
@@ -53,6 +53,12 @@
         const container = document.getElementById('formula-container');
         if (!container) return;
 
+        // 【核心修复 2】在渲染前，显式清空容器
+        container.innerHTML = '';
+        // 【核心修复 3】强制浏览器触发一次 Reflow (重排)
+        // 读取 offsetHeight 会强制浏览器重新计算布局，这通常能清除渲染残影
+        void container.offsetHeight;
+
         try {
             // 如果为空，清空内容
             if (!latex) {
@@ -67,6 +73,9 @@
                 output: 'html', // RISC-V 上如果 WebGL/Canvas 有问题，强制用 HTML 渲染最稳
                 trust: true     // 允许 \textcolor 等命令
             });
+
+            // 再次强制 Reflow，确保渲染上屏
+            void container.offsetHeight;
 
             // 渲染后滚动到最右侧
             setTimeout(() => {
