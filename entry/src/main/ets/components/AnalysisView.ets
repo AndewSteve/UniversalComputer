@@ -145,11 +145,21 @@ export struct AnalysisView {
 
   // === Loading / Error / Empty Views (保持简单) ===
   @Builder LoadingView() {
-    Column({ space: 10 }) {
-      LoadingProgress().width(40).height(40).color('#2D9CDB')
-      Text("正在进行数学推导...").fontSize(14).fontColor('#999')
+    Column({ space: 20 }) {
+      LoadingProgress()
+        .width(48)
+        .height(48)
+        .color('#2D9CDB')
+
+      // 显示动态变化的文案
+      Text(this.store.loadingText)
+        .fontSize(15)
+        .fontColor('#666')
+        .animation({ duration: 300 }) // 让文字变化有淡入淡出效果
     }
-    .width('100%').height('100%').justifyContent(FlexAlign.Center)
+    .width('100%')
+    .height('100%')
+    .justifyContent(FlexAlign.Center)
   }
 
   @Builder ErrorView() {
