@@ -30,7 +30,7 @@ export class AiService {
       const functionCallable = agconnect
         .function()
         .wrap(AiService.AGC_TRIGGER_URI);
-      functionCallable.timeout = 10000;
+      functionCallable.timeout = 30000;
 
       const result = await functionCallable.call({
         latex: latex

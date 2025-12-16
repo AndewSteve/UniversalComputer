@@ -108,6 +108,8 @@ export class CursorLogic {
 
     // 2. 禁止停在 } 和 { 之间 (e.g. }{ ) - 原有逻辑
     if (prevToken.value === '}' && nextToken.value === '{') return false;
+    if (prevToken.value === '}' && nextToken.value === '[') return false;
+    if (prevToken.value === ']' && nextToken.value === '{') return false;
 
     // --- 【新增规则】 ---
 

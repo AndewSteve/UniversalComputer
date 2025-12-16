@@ -2,6 +2,7 @@
 import { AnalysisStore, analysisStore } from '../viewmodel/AnalysisStore';
 import { AiResponse, AiService, AnalysisProperty } from '../viewmodel/core/AiService';
 import { promptAction } from '@kit.ArkUI';
+import { AnalysisResultComponent } from './AnalysisResultComponent';
 
 @Component
 export struct AnalysisView {
@@ -23,23 +24,11 @@ export struct AnalysisView {
         this.ErrorView();
       } else if (this.store.resultData) {
         // --- 核心：结构化结果展示 ---
-        Scroll() {
-          Column({ space: 16 }) {
-            this.ResultCard(this.store.resultData!)
-
-            if (this.store.resultData!.properties?.length > 0) {
-              this.PropertiesCard(this.store.resultData!.properties)
-            }
-
-            if (this.store.resultData!.steps?.length > 0) {
-              this.StepsCard(this.store.resultData!.steps)
-            }
-          }
-          .padding(16)
+        AnalysisResultComponent({
+          resultData: this.store.resultData
+        })
           .width('100%')
-        }
-        .align(Alignment.TopStart)
-        .layoutWeight(1)
+          .layoutWeight(1) // 填满剩余空间
       } else {
         this.EmptyView();
       }

@@ -216,7 +216,7 @@ struct Index {
 
   // 处理“完成”点击逻辑
   handleExecution() {
-    const currentLatex = this.store.getDisplayLatex(); // 或者用 getCleanLatex() 如果你加了的话
+    const currentLatex = this.store.getCleanLatex(); // 或者用 getCleanLatex() 如果你加了的话
     if (!currentLatex || currentLatex.trim() === "") return;
 
     // 1. 设置 AI 分析的目标公式

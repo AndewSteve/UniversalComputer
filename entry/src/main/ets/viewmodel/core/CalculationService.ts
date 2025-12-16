@@ -19,21 +19,23 @@ export class CalculationService {
   };
 
   static evaluateRealTime(tokens: FormulaToken[], isDegree: boolean): string | null {
-    console.info(`[MathDebug] Input: ${tokens.map(t => t.value).join(' ')}`);
-
+    // 1. 快速过滤复杂公式
     for (const t of tokens) {
       if (this.COMPLEX_SYMBOLS.includes(t.value)) return null;
     }
 
     try {
-      // 1. 解析生成表达式
+      // 2. 解析生成表达式
       const { expression } = this.parseExpr(tokens, 0, tokens.length);
+
+      // 如果表达式为空，或者解析结果仅仅是 "()" 这种无效串，返回 null
+      if (!expression.trim() || expression === '()') return null;
+
       console.info(`[MathDebug] Generated: "${expression}"`);
 
-      if (!expression.trim()) return null;
-
-      // 2. 作用域
+      // 3. 定义作用域 (Scope)
       const scope = {
+        // --- 三角函数 (处理角度/弧度) ---
         sin: (x: any) => isDegree ? math.sin(math.unit(x, 'deg')) : math.sin(x),
         cos: (x: any) => isDegree ? math.cos(math.unit(x, 'deg')) : math.cos(x),
         tan: (x: any) => isDegree ? math.tan(math.unit(x, 'deg')) : math.tan(x),
@@ -42,19 +44,24 @@ export class CalculationService {
         acos: (x: any) => isDegree ? math.unit(math.acos(x), 'rad').toNumber('deg') : math.acos(x),
         atan: (x: any) => isDegree ? math.unit(math.atan(x), 'rad').toNumber('deg') : math.atan(x),
 
+        // --- 双曲函数 ---
         sinh: math.sinh, cosh: math.cosh, tanh: math.tanh,
         asinh: math.asinh, acosh: math.acosh, atanh: math.atanh,
 
-        // 现在只需要标准 log
-        log: math.log,   // log(x, base) 或 ln(x)
+        // --- 对数与根 ---
+        log: math.log,   // log(x) 或 log(x, base)
         log10: math.log10,
+        sqrt: math.sqrt,
+        nthRoot: math.nthRoot, // 显式引入 nthRoot
 
-        pi: math.pi, e: math.e
+        // --- 常量 ---
+        pi: math.pi,
+        e: math.e
       };
 
+      // 4. 执行计算
       const result = math.evaluate(expression, scope);
       const resStr = this.formatResult(result);
-      console.info(`[MathDebug] Result: ${resStr}`);
       return resStr;
     } catch (e) {
       console.warn(`[MathDebug] Error: ${e.message}`);
@@ -74,28 +81,33 @@ export class CalculationService {
       const token = tokens[i];
       const val = token.value;
 
-      // 1. 遇到函数/命令 -> 转交给 parseFactor 处理原子单位
-      //    (包括 \log, \sin, \frac, \sqrt, 数字, 变量, 括号块)
+      // 1. 遇到需要解析的“因子” (函数、数字、变量、括号)
       if (token.type === TokenType.COMMAND ||
         token.type === TokenType.NUMBER ||
         token.type === TokenType.VARIABLE ||
-        val === '(' || val === '{') {
+        val === '(' || val === '{' || val === '[') { // 增加 '[' 处理可能出现的数组或范围，尽管数学公式里少见
 
-        // 调用 parseFactor 提取一个完整的“因子”
         const factorRes = this.parseFactor(tokens, i);
+
+        // 【优化】隐式乘法处理
+        // 如果当前 expr 结尾是数字/右括号，且新因子是变量/函数/左括号，补一个 *
+        // 例如: 2pi -> 2*pi, (1)(2) -> (1)*(2)
+        // 这里简单处理：只要 expr 不为空且最后一个字符不是运算符，就补 *
+        // 但为了安全起见，我们目前只依靠 OP_MAP 里的运算符，或者依赖 Math.js 的部分隐式乘法能力
+
         expr += factorRes.expression;
         i = factorRes.nextIndex;
       }
-      // 2. 遇到运算符 -> 直接拼接
+      // 2. 遇到运算符
       else if (this.OP_MAP[val]) {
         expr += this.OP_MAP[val];
         i++;
       }
-      // 3. 忽略结构标记 (只在 parseFactor 内部被消费)
+      // 3. 忽略结构标记
       else if (token.type === TokenType.STRUCT_MARKER) {
         i++;
       }
-      // 4. 其他 (如右括号)
+      // 4. 其他直接拼接
       else {
         expr += val;
         i++;
@@ -115,6 +127,15 @@ export class CalculationService {
     const token = tokens[index];
     const val = token.value;
 
+    // --- Case 0: 常量处理 (\pi, e) ---
+    // 【关键修复】明确将 \pi 转换为 pi 字符串
+    if (val === '\\pi') {
+      return { expression: 'pi', nextIndex: index + 1 };
+    }
+    if (val === 'e') {
+      return { expression: 'e', nextIndex: index + 1 };
+    }
+
     // --- Case A: 分数 \frac{a}{b} ---
     if (val === '\\frac') {
       const numRes = this.extractBlock(tokens, index + 1);
@@ -125,78 +146,80 @@ export class CalculationService {
       };
     }
 
-    // --- Case B: 根号 \sqrt{x} ---
+    // --- Case B: 根号 \sqrt{x} 或 \sqrt[n]{x} ---
+    // 【关键修复】支持 N 次方根
     if (val === '\\sqrt') {
-      const bodyRes = this.extractBlock(tokens, index + 1);
+      let degree = "2"; // 默认为 2 (平方根)
+      let currentIdx = index + 1;
+
+      // 1. 检查是否有方括号 [n]
+      if (currentIdx < tokens.length && tokens[currentIdx].value === '[') {
+        const degreeEnd = this.findMatchingParen(tokens, currentIdx, '[', ']');
+        // 解析方括号内部作为次数
+        const degreeRes = this.parseExpr(tokens, currentIdx + 1, degreeEnd);
+        degree = degreeRes.expression;
+        currentIdx = degreeEnd + 1;
+      }
+
+      // 2. 提取根号内容 {x}
+      const bodyRes = this.extractBlock(tokens, currentIdx);
+
+      // 3. 生成 nthRoot(x, n)
+      // 注意：Math.js 的 nthRoot 第一个参数是底数，第二个是根指数
       return {
-        expression: `sqrt(${bodyRes.expression})`,
+        expression: `nthRoot(${bodyRes.expression}, ${degree})`,
         nextIndex: bodyRes.nextIndex
       };
     }
 
     // --- Case C: 对数 \log ---
-    // 目标：生成 log(x, base) 或 log10(x)
     if (val === '\\log') {
       let currentIdx = index + 1;
-      let baseExpr = "10"; // 默认底数
+      let baseExpr = "10";
 
-      // 1. 检查底数 _{...}
+      // 检查底数 _{...}
       const baseRes = this.tryExtractSubscript(tokens, currentIdx);
       if (baseRes) {
         baseExpr = baseRes.expression;
         currentIdx = baseRes.nextIndex;
       }
 
-      // 2. 【关键】主动抓取真数 (Argument)
-      //    防止 log109 这种粘连，也为了生成 log(arg, base)
+      // 获取真数
       const argRes = this.parseFactor(tokens, currentIdx);
 
-      // 3. 生成结果
       if (baseExpr === "10") {
-        return {
-          expression: `log10(${argRes.expression})`,
-          nextIndex: argRes.nextIndex
-        };
+        return { expression: `log10(${argRes.expression})`, nextIndex: argRes.nextIndex };
       } else {
-        return {
-          expression: `log(${argRes.expression}, ${baseExpr})`,
-          nextIndex: argRes.nextIndex
-        };
+        return { expression: `log(${argRes.expression}, ${baseExpr})`, nextIndex: argRes.nextIndex };
       }
     }
 
-    // Case C-2: \lg -> log10
     if (val === '\\lg') {
       const argRes = this.parseFactor(tokens, index + 1);
       return { expression: `log10(${argRes.expression})`, nextIndex: argRes.nextIndex };
     }
 
-    // Case C-3: \ln -> log (自然对数)
     if (val === '\\ln') {
       const argRes = this.parseFactor(tokens, index + 1);
+      // Math.js 中 log(x) 默认就是自然对数 (base e)
       return { expression: `log(${argRes.expression})`, nextIndex: argRes.nextIndex };
     }
 
     // --- Case D: 三角/双曲函数 ---
-    // 目标：生成 func(arg)
     if (['\\sin', '\\cos', '\\tan', '\\sinh', '\\cosh', '\\tanh',
       '\\arcsin', '\\arccos', '\\arctan'].includes(val)) {
 
-      let funcName = val.substring(1); // 去掉 \
+      let funcName = val.substring(1);
       let currentIdx = index + 1;
 
-      // 检查反函数标记 sin^{-1}
       const invRes = this.tryExtractInverse(tokens, currentIdx);
       if (invRes) {
-        funcName = "a" + funcName; // sin -> asin
+        funcName = "a" + funcName;
         currentIdx = invRes.nextIndex;
-      }
-      // 处理直接的 \arcsin
-      else if (funcName.startsWith('arc')) {
+      } else if (funcName.startsWith('arc')) {
         funcName = funcName.replace('arc', 'a');
       }
 
-      // 【关键】主动抓取参数
       const argRes = this.parseFactor(tokens, currentIdx);
 
       return {
@@ -205,20 +228,21 @@ export class CalculationService {
       };
     }
 
-    // --- Case E: 括号块 ( ... ) 或 { ... } ---
+    // --- Case E: 括号块 ---
     if (val === '(') {
-      // 寻找配对 )
       const end = this.findMatchingParen(tokens, index, '(', ')');
-      const inner = this.parseExpr(tokens, index + 1, end); // 递归解析内部表达式
+      const inner = this.parseExpr(tokens, index + 1, end);
       return { expression: `(${inner.expression})`, nextIndex: end + 1 };
     }
     if (val === '{') {
-      const inner = this.extractBlock(tokens, index); // extractBlock 自带找 } 逻辑
+      const inner = this.extractBlock(tokens, index);
       return { expression: `(${inner.expression})`, nextIndex: inner.nextIndex };
     }
 
-    // --- Case F: 普通数字/变量 ---
-    // 直接返回，但要确保 nextIndex + 1
+    // --- Case F: 其他 ---
+    // 直接返回 Value (例如 "1", "x", "+", 等)
+    // 此时如果是 \pi 漏网之鱼，会被当做字符串，导致 Math.js 报错，
+    // 但前面 Case 0 已经处理了 \pi
     return { expression: val, nextIndex: index + 1 };
   }
 
@@ -226,7 +250,9 @@ export class CalculationService {
 
   private static extractBlock(tokens: FormulaToken[], startIndex: number): { expression: string, nextIndex: number } {
     if (startIndex >= tokens.length || tokens[startIndex].value !== '{') {
-      return { expression: "", nextIndex: startIndex };
+      // 容错：如果应该有 {} 但没有，可能用户还没输入完，尝试解析下一个因子
+      // 或者直接返回空，等待用户输入
+      return this.parseFactor(tokens, startIndex);
     }
     const end = this.findMatchingParen(tokens, startIndex, '{', '}');
     const inner = this.parseExpr(tokens, startIndex + 1, end);
@@ -268,6 +294,6 @@ export class CalculationService {
 
   private static formatResult(val: any): string {
     if (val === undefined || val === null) return "";
-    return math.format(val, { precision: 12, lowerExp: -9, upperExp: 9 });
+    return math.format(val, { precision: 10, lowerExp: -9, upperExp: 9 });
   }
 }
