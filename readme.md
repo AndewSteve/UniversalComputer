@@ -3,13 +3,25 @@
 
 本项目对标安卓平台的 **Maple Calculator**，结合了 **本地高性能 ArkUI** 与 **云端 DeepSeek 大模型**，旨在为用户提供从“所见即所得”的公式编辑到“AI 深度解析”的完整数学体验。
 
+<table>
+  <tr>
+    <td><img src=".\example\LaTex.png" width="100%"></td>
+    <td><img src=".\example\analysis.png" width="100%"></td>
+    <td><img src=".\example\calculation.png" width="100%"></td>
+  </tr>
+  <tr>
+    <td align="center">公式编辑</td>
+    <td align="center">DeepSeek 分析</td>
+    <td align="center">实时计算</td>
+  </tr>
+</table>
+
 ## ✨ 核心功能 (Features)
 ### ✅ 已完成功能
 * [x] **专业的 LaTeX 公式编辑**
   * [x] 自定义数学键盘（支持 \int, \sum, \lim 等复杂符号快捷输入）
   * [x] 基于 WebView + KaTeX 的实时高保真渲染
   * [x] 光标精准定位与公式编辑
-
 
 * [x] **实时结果预览**
   * [x] 内置轻量级 Math.js 引擎
