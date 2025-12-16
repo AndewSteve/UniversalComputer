@@ -4,13 +4,22 @@ import { MathKeyboard } from '../components/MathKeyboard';
 import { FormulaWebView } from '../components/FormulaWebView';
 import { FormulaView } from '../components/FormulaView';
 import { AppColors } from '../common/values/AppColors';
+import { AnalysisView } from '../components/AnalysisView';
 
 @Entry
 @Component
 struct Index {
   @State store: CalculatorStore = calculatorStore;
-  @State bottomPreviewMode: number = 1;
+  // Tab 索引: 0=组件, 1=结果, 2=分析
+  @State bottomPreviewMode: number = 0;
   @State isEditorExpanded: boolean = false;
+
+  // 【新增】控制键盘显示/隐藏的状态
+  @State isKeyboardVisible: boolean = true;
+
+  // 【核心】：专门用于传给 AnalysisView 的状态
+  // 只有当用户点击“完成”时，我们才更新这个变量
+  @State targetFormula: string = "";
 
   build() {
     Column() {
@@ -36,8 +45,9 @@ struct Index {
         })
         Blank()
         Row() {
-          this.SegmentButton("组件", 0)
+          this.SegmentButton("LaTex", 0)
           this.SegmentButton("结果", 1)
+          this.SegmentButton("分析", 2)
         }
         .backgroundColor('#EEEEEE')
         .borderRadius(20)
@@ -64,6 +74,11 @@ struct Index {
         // 通过权重控制 Stack 的高度，Stack 会自动拉伸内部的 WebView
         .layoutWeight(this.isEditorExpanded ? 65 : 30)
         .backgroundColor(Color.White)
+        .onClick(() => {
+          animateTo({ duration: 300, curve: Curve.EaseOut }, () => {
+            this.isKeyboardVisible = true;
+          })
+        })
 
         // --- B. 把手 (Handle) ---
         Stack({ alignContent: Alignment.Center }) {
@@ -105,7 +120,7 @@ struct Index {
             .height('100%')
             .alignContent(Alignment.TopStart)
 
-          } else {
+          } else if (this.bottomPreviewMode === 1){
             // 结果模式 (预览区)
             Column() {
               // 1. 显示计算结果 (如果有)
@@ -137,6 +152,10 @@ struct Index {
             .height('100%')
             .padding(16)
             .alignItems(HorizontalAlign.Start)
+          } else {
+            // Tab 2: AI 分析视图 【使用新组件】
+            // 我们把 targetFormula 传给它，它会自动监听变化并请求
+            AnalysisView({ latexToAnalyze: this.targetFormula })
           }
         }
         // 下半部分权重互补
@@ -147,12 +166,69 @@ struct Index {
       .layoutWeight(1) // 中间区域撑满
       .width('100%')
 
-      // 3. 键盘
-      MathKeyboard({ store: this.store })
+      // 3. 键盘区域 (带动画)
+      // 使用条件渲染 + transition
+      if (this.isKeyboardVisible) {
+        MathKeyboard({
+          store: this.store,
+          // 【新增】收到收起信号
+          onHide: () => {
+            animateTo({ duration: 300, curve: Curve.EaseInOut }, () => {
+              this.isKeyboardVisible = false;
+            })
+          },
+          // 【新增】收到执行信号
+          onExecute: () => {
+            this.handleExecution();
+          }
+        })
+        // 【关键】添加转场动画：从底部滑出
+          .transition(TransitionEffect.move(TransitionEdge.BOTTOM).animation({ duration: 300 }))
+      } else {
+        // 4. 当键盘隐藏时，显示一个“唤起条”
+        Button() {
+          Row() {
+            Text("⌨️")
+              .fontSize(20)
+              .fontColor('#555')
+            Text(" 展开键盘")
+              .fontSize(14)
+              .fontColor('#555')
+          }
+        }
+        .type(ButtonType.Normal)
+        .backgroundColor('#EEEEEE') // 浅灰背景
+        .width('100%')
+        .height(40) // 矮一点，不占地
+        .onClick(() => {
+          animateTo({ duration: 300, curve: Curve.EaseOut }, () => {
+            this.isKeyboardVisible = true;
+          })
+        })
+        // 唤起条也可以加个动画
+        .transition(TransitionEffect.move(TransitionEdge.BOTTOM).animation({ duration: 300 }))
+      }
     }
     .width('100%')
     .height('100%')
     .backgroundColor('#F5F7F9')
+  }
+
+  // 处理“完成”点击逻辑
+  handleExecution() {
+    const currentLatex = this.store.getDisplayLatex(); // 或者用 getCleanLatex() 如果你加了的话
+    if (!currentLatex || currentLatex.trim() === "") return;
+
+    // 1. 设置 AI 分析的目标公式
+    this.targetFormula = currentLatex;
+
+    // 2. 自动切换到“分析”Tab
+    this.bottomPreviewMode = 2;
+
+    // 3. 【体验优化】自动收起键盘，展示全屏分析结果
+    animateTo({ duration: 300, curve: Curve.EaseInOut }, () => {
+      this.isKeyboardVisible = false;
+    });
   }
 
   // SegmentButton 保持不变...

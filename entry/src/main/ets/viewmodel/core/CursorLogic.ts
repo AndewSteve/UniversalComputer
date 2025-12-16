@@ -94,15 +94,48 @@ export class CursorLogic {
    * 判断光标停在 index 处是否合法 (原子性检查)
    * 即使引入了策略模式，这个基础检查依然需要，确保普通光标移动不会破坏语法结构
    */
+  /**
+   * 判断光标停在 index 处是否合法 (原子性检查)
+   */
   private static isValidPosition(tokens: FormulaToken[], index: number): boolean {
-    // ... (原有代码)
     if (index <= 0 || index >= tokens.length) return true;
+
     const prevToken = tokens[index - 1];
     const nextToken = tokens[index];
+
+    // 1. 禁止停在 Command 和 { 之间 (e.g. \sqrt|{3}) - 原有逻辑
     if (prevToken.type === TokenType.COMMAND && nextToken.value === '{') return false;
+
+    // 2. 禁止停在 } 和 { 之间 (e.g. }{ ) - 原有逻辑
     if (prevToken.value === '}' && nextToken.value === '{') return false;
-    if (prevToken.type === TokenType.COMMAND && nextToken.value === '[') return false;
-    if (prevToken.value === ']' && nextToken.value === '{') return false;
+
+    // --- 【新增规则】 ---
+
+    // 3. 禁止停在 结构标记 和 { 之间 (e.g. \log_|{2}, 2^|{3})
+    // 解决您最关心的 \log_|{2} 问题
+    if ((prevToken.type === TokenType.STRUCT_MARKER || prevToken.value === '_' || prevToken.value === '^')
+      && nextToken.value === '{') {
+      return false;
+    }
+
+    // 4. 禁止停在 Command 和 ( 之间 (e.g. \sin|(x))
+    // 解决您提到的 sin|(x) 问题
+    if (prevToken.type === TokenType.COMMAND && nextToken.value === '(') {
+      return false;
+    }
+
+    // 5. (可选) 禁止停在 Command 和 [ 之间 (e.g. \sqrt|[3])
+    if (prevToken.type === TokenType.COMMAND && nextToken.value === '[') {
+      return false;
+    }
+
+    // --- 【新增核心规则】禁止停在 Command 和 结构标记 之间 ---
+    // 解决: \log|_{10}, \sin|^{2}, \int|_{a}
+    if (prevToken.type === TokenType.COMMAND &&
+      (nextToken.type === TokenType.STRUCT_MARKER || nextToken.value === '_' || nextToken.value === '^')) {
+      return false;
+    }
+
     return true;
   }
 }

@@ -124,6 +124,11 @@ export class CalculatorStore {
     return RenderLogic.generateDisplayLatex(this.tokens, this.cursorIndex);
   }
 
+  // 【新增】获取发给 AI 的纯净公式
+  public getCleanLatex(): string {
+    return RenderLogic.generateCleanLatex(this.tokens);
+  }
+
   // --- 辅助方法 ---
 
   private isModification(action: KeyAction): boolean {

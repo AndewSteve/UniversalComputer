@@ -1,13 +1,27 @@
 {
   "app": {
-    "signingConfigs": [],
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "storeFile": "C:/Users/Momoi/keys/harmony/universal_computer_debug.p12",
+          "storePassword": "0000001E5FEC68FB1A8F13DF8701ADDC1C2FC2B227D338D4A36C75CE8EC51A31DE6450EB3AA5FA069B02506EDE43",
+          "keyAlias": "universal_computer_debug",
+          "keyPassword": "0000001EE648FE94807045E1A7B593095ABA79D042E4C1371AC8665C712C95F18D88BB19AA30FD4160C56F49A5A7",
+          "signAlg": "SHA256withECDSA",
+          "profile": "C:/Users/Momoi/keys/harmony/universal_computer_debug_profileDebug.p7b",
+          "certpath": "C:/Users/Momoi/keys/harmony/universal_computer_debug.cer"
+        }
+      }
+    ],
     "products": [
       {
         "name": "default",
         "signingConfig": "default",
         "targetSdkVersion": "6.0.0(20)",
-          "compatibleSdkVersion": "5.0.1(13)",
-            "runtimeOS":"HarmonyOS",
+        "compatibleSdkVersion": "5.0.1(13)",
+        "runtimeOS": "HarmonyOS",
         "buildOption": {
           "strictMode": {
             "caseSensitiveCheck": true,
@@ -18,7 +32,7 @@
     ],
     "buildModeSet": [
       {
-          "name": "debug",
+        "name": "debug",
       },
       {
         "name": "release"
@@ -26,8 +40,7 @@
     ]
   },
   "modules": [
-
-  {
+    {
       "name": "entry",
       "srcPath": "./entry",
       "targets": [
@@ -38,5 +51,6 @@
           ]
         }
       ]
-    }]
+    }
+  ]
 }

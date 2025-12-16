@@ -152,7 +152,7 @@ export const MAPLE_KEYS: KeyModel[] = [
   { label: '0', value: '0', action: KeyAction.INSERT, insertType: TokenType.NUMBER, bgColor: AppColors.BG_GREY, textColor: AppColors.TEXT_WHITE },
   { label: '.', value: '.', action: KeyAction.INSERT, insertType: TokenType.NUMBER, bgColor: AppColors.BG_GREY, textColor: AppColors.TEXT_WHITE },
   { label: ',', value: ',', action: KeyAction.INSERT, insertType: TokenType.NUMBER, bgColor: AppColors.BG_DARK, textColor: AppColors.TEXT_WHITE },
-  { label: '=', value: '=', action: KeyAction.EXECUTE, bgColor: AppColors.BG_DARK, textColor: AppColors.TEXT_WHITE },
+  { label: '=', value: '=', action: KeyAction.INSERT, insertType: TokenType.STRUCT_MARKER, bgColor: AppColors.BG_DARK, textColor: AppColors.TEXT_WHITE },
   { label: '↓', value: 'DOWN', action: KeyAction.NAV_DOWN, bgColor: AppColors.BG_DARK, textColor: AppColors.TEXT_WHITE }, // 需在 KeyAction 加 NAV_DOWN
-  { label: '✓', value: '', action: KeyAction.EXECUTE, bgColor: AppColors.BG_BLUE_BTN, textColor: AppColors.TEXT_WHITE },
+  { label: '✓', value: 'analysis', action: KeyAction.EXECUTE, bgColor: AppColors.BG_BLUE_BTN, textColor: AppColors.TEXT_WHITE },
 ];

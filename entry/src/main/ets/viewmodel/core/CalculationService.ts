@@ -2,78 +2,71 @@
 import { FormulaToken, TokenType } from '../../model/FormulaToken';
 import { evaluate, create, all } from 'mathjs';
 
-// 创建一个独立的 mathjs 实例，方便配置
 const math = create(all, {
-  number: 'BigNumber', // 使用高精度小数
+  number: 'BigNumber',
   precision: 64
 });
 
 export class CalculationService {
 
-  // 黑名单：包含这些符号时停止实时计算
   private static readonly COMPLEX_SYMBOLS = [
     '\\int', '\\sum', '\\lim', '\\prod', 'd', 'dx'
   ];
 
-  /**
-   * 翻译映射表 (Abstraction Layer)
-   * 这里定义 LaTeX 符号对应的 MathJS 运算符
-   */
   private static readonly OP_MAP: Record<string, string> = {
-    '\\cdot': '*',
-    '\\times': '*',
-    '\\div': '/',
-    '+': '+',
-    '-': '-',
-    '^': '^',
-    '=': '=='
+    '\\cdot': '*', '\\times': '*', '\\div': '/',
+    '+': '+', '-': '-', '^': '^', '=': '=='
   };
 
-  /**
-   * 实时计算入口
-   * @param tokens Token 列表
-   * @param isDegree 是否为角度制
-   */
   static evaluateRealTime(tokens: FormulaToken[], isDegree: boolean): string | null {
-    // 1. 快速检查黑名单
+    console.info(`[MathDebug] Input: ${tokens.map(t => t.value).join(' ')}`);
+
     for (const t of tokens) {
-      if (this.COMPLEX_SYMBOLS.includes(t.value) || t.type === TokenType.STRUCT_MARKER) {
-        return null;
-      }
+      if (this.COMPLEX_SYMBOLS.includes(t.value)) return null;
     }
 
     try {
-      // 2. 递归翻译 (LaTeX Tokens -> Math Expression)
-      const { expression } = this.parseGroup(tokens, 0, tokens.length);
+      // 1. 解析生成表达式
+      const { expression } = this.parseExpr(tokens, 0, tokens.length);
+      console.info(`[MathDebug] Generated: "${expression}"`);
 
       if (!expression.trim()) return null;
 
-      // 3. 构建计算作用域 (处理角度/弧度)
-      // 我们通过重写三角函数来实现 Rad/Deg 切换，而不是去改 global config
+      // 2. 作用域
       const scope = {
         sin: (x: any) => isDegree ? math.sin(math.unit(x, 'deg')) : math.sin(x),
         cos: (x: any) => isDegree ? math.cos(math.unit(x, 'deg')) : math.cos(x),
         tan: (x: any) => isDegree ? math.tan(math.unit(x, 'deg')) : math.tan(x),
-        // 你可以在这里扩展更多函数，例如 arcsin 等
-        pi: math.pi,
-        e: math.e
+
+        asin: (x: any) => isDegree ? math.unit(math.asin(x), 'rad').toNumber('deg') : math.asin(x),
+        acos: (x: any) => isDegree ? math.unit(math.acos(x), 'rad').toNumber('deg') : math.acos(x),
+        atan: (x: any) => isDegree ? math.unit(math.atan(x), 'rad').toNumber('deg') : math.atan(x),
+
+        sinh: math.sinh, cosh: math.cosh, tanh: math.tanh,
+        asinh: math.asinh, acosh: math.acosh, atanh: math.atanh,
+
+        // 现在只需要标准 log
+        log: math.log,   // log(x, base) 或 ln(x)
+        log10: math.log10,
+
+        pi: math.pi, e: math.e
       };
 
-      // 4. 执行计算
       const result = math.evaluate(expression, scope);
-
-      return this.formatResult(result);
+      const resStr = this.formatResult(result);
+      console.info(`[MathDebug] Result: ${resStr}`);
+      return resStr;
     } catch (e) {
-      // 语法错误或输入未完成时，静默失败
+      console.warn(`[MathDebug] Error: ${e.message}`);
       return null;
     }
   }
 
   /**
-   * 【核心算法】递归解析 Token 流
-   * 处理嵌套结构如 \frac{...}{...} 或 \sqrt{...}
+   * 解析一段表达式 (Expression)
+   * 处理加减乘除连接的逻辑
    */
-  private static parseGroup(tokens: FormulaToken[], start: number, end: number): { expression: string, nextIndex: number } {
+  private static parseExpr(tokens: FormulaToken[], start: number, end: number): { expression: string, nextIndex: number } {
     let expr = "";
     let i = start;
 
@@ -81,67 +74,28 @@ export class CalculationService {
       const token = tokens[i];
       const val = token.value;
 
-      // --- Case A: 分数 \frac{num}{den} ---
-      if (val === '\\frac') {
-        // 1. 解析分子 { ... }
-        const numStart = i + 1; // 跳过 \frac
-        const numRes = this.extractBlock(tokens, numStart);
-        // 2. 解析分母 { ... }
-        const denStart = numRes.nextIndex;
-        const denRes = this.extractBlock(tokens, denStart);
+      // 1. 遇到函数/命令 -> 转交给 parseFactor 处理原子单位
+      //    (包括 \log, \sin, \frac, \sqrt, 数字, 变量, 括号块)
+      if (token.type === TokenType.COMMAND ||
+        token.type === TokenType.NUMBER ||
+        token.type === TokenType.VARIABLE ||
+        val === '(' || val === '{') {
 
-        // 拼接为 (num) / (den)
-        expr += `(${numRes.expression}) / (${denRes.expression})`;
-
-        // 更新指针
-        i = denRes.nextIndex;
+        // 调用 parseFactor 提取一个完整的“因子”
+        const factorRes = this.parseFactor(tokens, i);
+        expr += factorRes.expression;
+        i = factorRes.nextIndex;
       }
-      // --- Case B: 根号 \sqrt{body} ---
-      else if (val === '\\sqrt') {
-        // 检查是否有方括号 [] (立方根等)，暂时简化处理，默认只处理 {}
-        // 如果你的 KeyConfig 有 \sqrt[3]，这里需要额外判断
-        const bodyStart = i + 1;
-        const bodyRes = this.extractBlock(tokens, bodyStart);
-
-        expr += `sqrt(${bodyRes.expression})`;
-        i = bodyRes.nextIndex;
-      }
-      // --- Case C: 普通括号 ( ) ---
-      else if (val === '(') {
-        expr += '(';
-        i++;
-      }
-      else if (val === ')') {
-        expr += ')';
-        i++;
-      }
-      // --- Case D: 结构性括号 { } (用于 \frac 以外的场景，如 ^) ---
-      else if (val === '{') {
-        // 递归解析大括号内部
-        const blockRes = this.parseGroup(tokens, i + 1, end); // 这里可能有问题，需要找配对的 }
-        // 但通常 extractBlock 更好用。如果只是普通分组，直接当括号处理？
-        // 这里的策略是：如果是独立的 {，我们解析它直到遇到 }
-        // 简单起见，调用 extractBlock 剥离外壳
-        const inner = this.extractBlock(tokens, i);
-        expr += `(${inner.expression})`;
-        i = inner.nextIndex;
-      }
-      else if (val === '}') {
-        // 遇到未预期的右括号，直接结束当前层级解析
-        return { expression: expr, nextIndex: i + 1 };
-      }
-      // --- Case E: 运算符映射 ---
+      // 2. 遇到运算符 -> 直接拼接
       else if (this.OP_MAP[val]) {
         expr += this.OP_MAP[val];
         i++;
       }
-      // --- Case F: 函数名 (sin, cos) ---
-      else if (['\\sin', '\\cos', '\\tan', '\\ln', '\\log'].includes(val)) {
-        // 去掉反斜杠
-        expr += val.substring(1);
+      // 3. 忽略结构标记 (只在 parseFactor 内部被消费)
+      else if (token.type === TokenType.STRUCT_MARKER) {
         i++;
       }
-      // --- Case G: 普通数字或变量 ---
+      // 4. 其他 (如右括号)
       else {
         expr += val;
         i++;
@@ -151,38 +105,169 @@ export class CalculationService {
   }
 
   /**
-   * 辅助函数：提取 { ... } 块的内容并递归翻译
-   * @returns expression: 块内翻译后的字符串, nextIndex: 块结束后的索引
+   * 【核心】解析一个“因子” (Factor)
+   * 一个因子可以是一个数字、一个括号块、或者一个带参数的函数调用
+   * 比如: "9", "(1+2)", "sin(x)", "log(9, 2)"
    */
+  private static parseFactor(tokens: FormulaToken[], index: number): { expression: string, nextIndex: number } {
+    if (index >= tokens.length) return { expression: "", nextIndex: index };
+
+    const token = tokens[index];
+    const val = token.value;
+
+    // --- Case A: 分数 \frac{a}{b} ---
+    if (val === '\\frac') {
+      const numRes = this.extractBlock(tokens, index + 1);
+      const denRes = this.extractBlock(tokens, numRes.nextIndex);
+      return {
+        expression: `(${numRes.expression}) / (${denRes.expression})`,
+        nextIndex: denRes.nextIndex
+      };
+    }
+
+    // --- Case B: 根号 \sqrt{x} ---
+    if (val === '\\sqrt') {
+      const bodyRes = this.extractBlock(tokens, index + 1);
+      return {
+        expression: `sqrt(${bodyRes.expression})`,
+        nextIndex: bodyRes.nextIndex
+      };
+    }
+
+    // --- Case C: 对数 \log ---
+    // 目标：生成 log(x, base) 或 log10(x)
+    if (val === '\\log') {
+      let currentIdx = index + 1;
+      let baseExpr = "10"; // 默认底数
+
+      // 1. 检查底数 _{...}
+      const baseRes = this.tryExtractSubscript(tokens, currentIdx);
+      if (baseRes) {
+        baseExpr = baseRes.expression;
+        currentIdx = baseRes.nextIndex;
+      }
+
+      // 2. 【关键】主动抓取真数 (Argument)
+      //    防止 log109 这种粘连，也为了生成 log(arg, base)
+      const argRes = this.parseFactor(tokens, currentIdx);
+
+      // 3. 生成结果
+      if (baseExpr === "10") {
+        return {
+          expression: `log10(${argRes.expression})`,
+          nextIndex: argRes.nextIndex
+        };
+      } else {
+        return {
+          expression: `log(${argRes.expression}, ${baseExpr})`,
+          nextIndex: argRes.nextIndex
+        };
+      }
+    }
+
+    // Case C-2: \lg -> log10
+    if (val === '\\lg') {
+      const argRes = this.parseFactor(tokens, index + 1);
+      return { expression: `log10(${argRes.expression})`, nextIndex: argRes.nextIndex };
+    }
+
+    // Case C-3: \ln -> log (自然对数)
+    if (val === '\\ln') {
+      const argRes = this.parseFactor(tokens, index + 1);
+      return { expression: `log(${argRes.expression})`, nextIndex: argRes.nextIndex };
+    }
+
+    // --- Case D: 三角/双曲函数 ---
+    // 目标：生成 func(arg)
+    if (['\\sin', '\\cos', '\\tan', '\\sinh', '\\cosh', '\\tanh',
+      '\\arcsin', '\\arccos', '\\arctan'].includes(val)) {
+
+      let funcName = val.substring(1); // 去掉 \
+      let currentIdx = index + 1;
+
+      // 检查反函数标记 sin^{-1}
+      const invRes = this.tryExtractInverse(tokens, currentIdx);
+      if (invRes) {
+        funcName = "a" + funcName; // sin -> asin
+        currentIdx = invRes.nextIndex;
+      }
+      // 处理直接的 \arcsin
+      else if (funcName.startsWith('arc')) {
+        funcName = funcName.replace('arc', 'a');
+      }
+
+      // 【关键】主动抓取参数
+      const argRes = this.parseFactor(tokens, currentIdx);
+
+      return {
+        expression: `${funcName}(${argRes.expression})`,
+        nextIndex: argRes.nextIndex
+      };
+    }
+
+    // --- Case E: 括号块 ( ... ) 或 { ... } ---
+    if (val === '(') {
+      // 寻找配对 )
+      const end = this.findMatchingParen(tokens, index, '(', ')');
+      const inner = this.parseExpr(tokens, index + 1, end); // 递归解析内部表达式
+      return { expression: `(${inner.expression})`, nextIndex: end + 1 };
+    }
+    if (val === '{') {
+      const inner = this.extractBlock(tokens, index); // extractBlock 自带找 } 逻辑
+      return { expression: `(${inner.expression})`, nextIndex: inner.nextIndex };
+    }
+
+    // --- Case F: 普通数字/变量 ---
+    // 直接返回，但要确保 nextIndex + 1
+    return { expression: val, nextIndex: index + 1 };
+  }
+
+  // --- 辅助方法 ---
+
   private static extractBlock(tokens: FormulaToken[], startIndex: number): { expression: string, nextIndex: number } {
-    // 确保当前是 '{'
     if (startIndex >= tokens.length || tokens[startIndex].value !== '{') {
       return { expression: "", nextIndex: startIndex };
     }
+    const end = this.findMatchingParen(tokens, startIndex, '{', '}');
+    const inner = this.parseExpr(tokens, startIndex + 1, end);
+    return { expression: inner.expression, nextIndex: end + 1 };
+  }
 
-    // 寻找配对的 '}'
+  private static findMatchingParen(tokens: FormulaToken[], start: number, openChar: string, closeChar: string): number {
     let balance = 1;
-    let endIndex = startIndex + 1;
-    while (endIndex < tokens.length) {
-      if (tokens[endIndex].value === '{') balance++;
-      else if (tokens[endIndex].value === '}') balance--;
-
-      if (balance === 0) break;
-      endIndex++;
+    let i = start + 1;
+    while (i < tokens.length) {
+      if (tokens[i].value === openChar) balance++;
+      else if (tokens[i].value === closeChar) balance--;
+      if (balance === 0) return i;
+      i++;
     }
+    return i; // 未闭合，返回末尾
+  }
 
-    // 递归解析 { 和 } 之间的内容
-    const innerResult = this.parseGroup(tokens, startIndex + 1, endIndex);
+  private static tryExtractSubscript(tokens: FormulaToken[], startIndex: number): { expression: string, nextIndex: number } | null {
+    if (startIndex >= tokens.length) return null;
+    if (tokens[startIndex].value === '_') {
+      // 提取 _ 后面 { ... }
+      return this.extractBlock(tokens, startIndex + 1);
+    }
+    return null;
+  }
 
-    return {
-      expression: innerResult.expression,
-      nextIndex: endIndex + 1 // 跳过末尾的 }
-    };
+  private static tryExtractInverse(tokens: FormulaToken[], startIndex: number): { nextIndex: number } | null {
+    if (startIndex + 4 < tokens.length &&
+      tokens[startIndex].value === '^' &&
+      tokens[startIndex + 1].value === '{' &&
+      tokens[startIndex + 2].value === '-' &&
+      tokens[startIndex + 3].value === '1' &&
+      tokens[startIndex + 4].value === '}') {
+      return { nextIndex: startIndex + 5 };
+    }
+    return null;
   }
 
   private static formatResult(val: any): string {
     if (val === undefined || val === null) return "";
-    // 将 BigNumber 转为字符串，保留适当精度
-    return math.format(val, { precision: 10, lowerExp: -9, upperExp: 9 });
+    return math.format(val, { precision: 12, lowerExp: -9, upperExp: 9 });
   }
 }

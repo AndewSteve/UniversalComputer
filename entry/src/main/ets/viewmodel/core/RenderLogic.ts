@@ -54,6 +54,19 @@ export class RenderLogic {
     return latex;
   }
 
+  static generateCleanLatex(tokens: FormulaToken[]): string {
+    let latex = "";
+    for (const token of tokens) {
+      // 核心过滤：如果是光标类型，直接跳过
+      if (token.type === TokenType.CURSOR) {
+        continue;
+      }
+      // 只是简单的拼接 value，不要加 \textcolor
+      latex += token.value;
+    }
+    return latex;
+  }
+
   private static getCursorHex(): string {
     return `\\textcolor{#FF0055}{|}`;
   }

@@ -20,9 +20,11 @@ interface MyPosition {
   y: number;
 }
 
+
 @Component
 export struct MathKeyboard {
   @ObjectLink store: CalculatorStore;
+  onExecute: () => void = () =>{};
   @State popupState: PopupUiState = popupUiState;
 
   // 【新增】键盘模式状态
@@ -33,6 +35,9 @@ export struct MathKeyboard {
 
   // 【修改】屏幕宽度初始化为 0，稍后获取
   @State screenWidth: number = 0;
+
+  // 【新增】接收父组件传入的“收起”回调
+  onHide: () => void = () => {};
 
   // 【新增】组件加载时获取真实屏幕宽度
   aboutToAppear() {
@@ -96,6 +101,11 @@ export struct MathKeyboard {
       return;
     }
 
+    if (key.value === 'analysis') {
+      this.onExecute();
+      return;
+    }
+
     // 2. 执行 Store 的操作
     this.store.handleInput(key);
 
@@ -127,6 +137,10 @@ export struct MathKeyboard {
 
           this.TopBarButton("abc", () => { })
           Blank()
+          // 【新增】收起键盘按钮 (放在中间或者靠右)
+          this.TopBarButton("↓", () => {
+            this.onHide(); // 点击触发收起
+          })
           this.TopBarButton("↶", () => { this.store.undo(); })
           this.TopBarButton("↷", () => { this.store.redo(); })
           this.TopBarButton("🗑", () => { this.store.clearAll(); })

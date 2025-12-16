@@ -7,6 +7,7 @@ import { StrategyUtils } from './StrategyUtils';
 import { FractionStrategy } from './implem/FractionStrategy';
 import { PowerStrategy } from './implem/PowerStrategy';
 import { IntegralStrategy } from './implem/IntegralStrategy';
+import { LogStructureStrategy } from './implem/LogStructureStrategy';
 
 export class StructureManager {
   private static strategies: Map<string, IStructureStrategy> = new Map();
@@ -19,6 +20,7 @@ export class StructureManager {
     this.register(new FractionStrategy());
     this.register(new PowerStrategy());
     this.register(new IntegralStrategy());
+    this.register(new LogStructureStrategy());
 
     this.isInitialized = true;
   }
