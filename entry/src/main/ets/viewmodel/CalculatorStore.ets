@@ -7,7 +7,6 @@ import { RenderLogic } from './core/RenderLogic';
 import { SelectionLogic } from './core/SelectionLogic';
 import { HistoryLogic, EditorSnapshot } from './core/HistoryLogic'; // 假设你也把 History 拆了
 import { CalculationService } from './core/CalculationService';
-import { myLogger } from "../common/values/MyLogger";
 
 @Observed
 export class CalculatorStore {
@@ -16,20 +15,18 @@ export class CalculatorStore {
 
   public tokens: FormulaToken[] = [];
   public cursorIndex: number = 0;
-  //
-  // // 选区相关
+
+  // 选区相关
   public selectionStart: number = -1;
   public selectionEnd: number = -1;
-  //
-  // // 历史管理 (可以直接在这里 new，或者也做成 static 工具)
+
+  // 历史管理 (可以直接在这里 new，或者也做成 static 工具)
   private historyLogic: HistoryLogic = new HistoryLogic();
 
   // 【新增】角度模式状态 (false: Rad, true: Deg)
   public isDegree: boolean = false;
 
   constructor() {
-    console.info("this is console output");
-    myLogger.log("this is hilog output");
     this.tokens = [];
     this.cursorIndex = 0;
   }
