@@ -6,11 +6,11 @@
         "material": {
           "certpath": "C:/Users/Momoi/.ohos/config/openharmony/default_UniversalComputer_I1rdTWFymJnGemyV_KtLad4HZPcKOQ6maBP20zUm0eE=.cer",
           "keyAlias": "debugKey",
-          "keyPassword": "0000001A89CEDA2CD408743DC573DA7B315A8099D8123030CBC25BFF18FB1B4509FF31D7EB4F38BB185F",
+          "keyPassword": "0000001B8B17AE0EAF16537144C4087FD505D67F347D748060AEE0334F1A38F880BB3D6C66D6E8A940BD24",
           "profile": "C:/Users/Momoi/.ohos/config/openharmony/default_UniversalComputer_I1rdTWFymJnGemyV_KtLad4HZPcKOQ6maBP20zUm0eE=.p7b",
           "signAlg": "SHA256withECDSA",
           "storeFile": "C:/Users/Momoi/.ohos/config/openharmony/default_UniversalComputer_I1rdTWFymJnGemyV_KtLad4HZPcKOQ6maBP20zUm0eE=.p12",
-          "storePassword": "0000001ACCDB7FC3DA2F461BD3103B2E0DE932C50813CDDE80627FECFE15AFFB5DA529C5EB9D336899D3"
+          "storePassword": "0000001B0C1ECDBDB39706277C38D3C2C0C9151EE1F8B256FF76A5497F8EBF026328D6D9828CE481047D58"
         }
       }
     ],
