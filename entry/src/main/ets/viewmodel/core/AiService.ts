@@ -1,8 +1,8 @@
 // viewmodel/core/AiService.ts
-// import agconnect from '@hw-agconnect/api-ohos';
 import http from '@ohos.net.http';
+import { APP_SECRET } from '../../common/AppSecret';
 
-// 定义接口，方便其他文件复用
+// --- 1. 恢复接口定义 (方便其他文件复用) ---
 export interface AnalysisProperty {
   label: string;
   value_latex: string;
@@ -17,100 +17,126 @@ export interface AiResponse {
 }
 
 export class AiService {
-  // 替换为你部署好的 CF Worker 地址
-  private static readonly AGC_TRIGGER_URI = 'analysis-latex-$latest';
 
+  // --- 2. 核心分析方法 (直连模式 + 人性化错误处理) ---
   static async analyzeFormula(latex: string): Promise<{ success: boolean, data?: AiResponse, error?: string }> {
     if (!latex || latex.trim() === "") {
       return { success: false, error: "公式不能为空" };
     }
 
     try {
-      console.info(`[AGC] Calling Cloud Function: ${this.AGC_TRIGGER_URI}`);
+      console.info('[AiService] Starting DeepSeek Analysis...');
 
-      // const functionCallable = agconnect.function().wrap(AiService.AGC_TRIGGER_URI);
-      //
-      // // 【关键修改】 DeepSeek 思考比较慢，建议设为 30s 或 60s
-      // functionCallable.timeout = 60000;
-      //
-      // const result = await functionCallable.call({
-      //   latex: latex
-      // });
-      //
-      // const responseBody = result.getValue();
-      // // console.info(`[AGC] Response: ${JSON.stringify(responseBody)}`);
-      //
-      // // 兼容 DeepSeek 的不同返回格式 (content 有时在 message 里，有时在 choices 里)
-      // const deepSeekContent = responseBody.choices?.[0]?.message?.content || responseBody.content;
-      //
-      // if (deepSeekContent) {
-      //   try {
-      //     const parsedData = JSON.parse(deepSeekContent) as AiResponse;
-      //     return { success: true, data: parsedData };
-      //   } catch (e) {
-      //     console.error("JSON Parse Error", e);
-      //     // 如果 AI 返回了不是 JSON 的纯文本（偶尔发生），也要友好提示
-      //     return { success: false, error: "AI 返回格式异常，请重试" };
-      //   }
-      // }
+      // 创建 HTTP 请求
+      const httpRequest = http.createHttp();
 
-      return { success: false, error: "AI 未返回有效内容" };
+      const response = await httpRequest.request(
+        APP_SECRET.API_URL,
+        {
+          method: http.RequestMethod.POST,
+          header: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${APP_SECRET.DEEPSEEK_API_KEY}`
+          },
+          extraData: {
+            model: "deepseek-chat",
+            messages: [
+              { role: "system", content: APP_SECRET.AI_SYSTEM_PROMPT },
+              { role: "user", content: `Analyze: ${latex}` }
+            ],
+            temperature: 0.1,
+            stream: false
+          },
+          // 【关键】保留 60s 超时设置
+          readTimeout: 60000,
+          connectTimeout: 60000
+        }
+      );
+
+      // --- 3. 处理响应 (兼容 DeepSeek 格式) ---
+      if (response.responseCode === 200) {
+        const resStr = response.result as string;
+        const resJson = JSON.parse(resStr);
+
+        // 获取内容 (DeepSeek 标准格式)
+        const aiContent = resJson.choices?.[0]?.message?.content;
+
+        if (aiContent) {
+          try {
+            // 清洗 Markdown 标记 (防止 AI 返回 ```json)
+            const cleanContent = this.cleanMarkdown(aiContent);
+            const parsedData = JSON.parse(cleanContent) as AiResponse;
+            return { success: true, data: parsedData };
+          } catch (e) {
+            console.error("JSON Parse Error", e);
+            return { success: false, error: "AI 返回格式异常，正在重试..." };
+          }
+        }
+        return { success: false, error: "AI 未返回有效内容" };
+
+      } else {
+        // HTTP 状态码错误处理
+        if (response.responseCode === 401) return { success: false, error: "API Key 无效，请检查配置" };
+        if (response.responseCode === 429) return { success: false, error: "请求过于频繁，请稍后再试" };
+        if (response.responseCode >= 500) return { success: false, error: "DeepSeek 服务繁忙，请稍后" };
+        return { success: false, error: `请求失败 (Code: ${response.responseCode})` };
+      }
 
     } catch (err: any) {
-      console.error('AI Service Error:', JSON.stringify(err));
+      console.error('[AiService] Error:', JSON.stringify(err));
 
-      // 【关键修改】 细化错误提示
+      // --- 4. 【恢复】人性化错误提示 ---
       let friendlyMsg = "服务暂时不可用";
       const errStr = JSON.stringify(err);
 
-      // 华为 AGC SDK 的超时错误码通常包含 'timeout' 或特定 Code
-      if (errStr.includes("timeout") || err.code === 203818064) {
+      // 鸿蒙 HTTP 模块的错误码判断
+      // 2300005: 连接超时, 2300006: 无法解析域名
+      if (errStr.includes("timeout") || err.code === 2300005) {
         friendlyMsg = "AI 思考超时 (超过60秒)，请尝试简化公式";
-      } else if (errStr.includes("Network") || err.code === 203818065) {
-        friendlyMsg = "网络连接失败，请检查网络";
-      } else if (errStr.includes("203818130")) {
-        friendlyMsg = "签名校验失败 (请检查 AGC 配置)";
+      } else if (errStr.includes("Network") || err.code === 2300006 || err.code === 2300025) {
+        friendlyMsg = "网络连接失败，请检查模拟器网络";
+      } else if (errStr.includes("SSL")) {
+        friendlyMsg = "安全连接建立失败 (SSL握手错误)";
       }
 
       return { success: false, error: friendlyMsg };
     }
   }
 
-  /**
-   * 【新增】网络连通性自检
-   * 访问 bing.com，返回详细的调试日志
-   */
+  // --- 5. 辅助：清洗 Markdown ---
+  private static cleanMarkdown(text: string): string {
+    let clean = text.trim();
+    // 去掉开头的 ```json 或 ```
+    if (clean.startsWith('```json')) {
+      clean = clean.replace(/^```json/, '');
+    } else if (clean.startsWith('```')) {
+      clean = clean.replace(/^```/, '');
+    }
+    // 去掉结尾的 ```
+    if (clean.endsWith('```')) {
+      clean = clean.replace(/```$/, '');
+    }
+    return clean.trim();
+  }
+
+  // --- 6. 【恢复】网络自检功能 (调试用) ---
   static async checkConnectivity(): Promise<string> {
     const testUrl = "https://www.bing.com";
     try {
       const httpRequest = http.createHttp();
-
-      // 发起 HEAD 或 GET 请求，超时设短一点 (5秒)
       const response = await httpRequest.request(testUrl, {
-        method: http.RequestMethod.GET,
-        expectDataType: http.HttpDataType.STRING,
+        method: http.RequestMethod.HEAD, // 用 HEAD 更快
         connectTimeout: 5000,
         readTimeout: 5000
       });
 
       if (response.responseCode === 200) {
-        return `✅ 网络正常 (Code: 200)\n成功连接到 ${testUrl}`;
+        return `✅ 网络正常 (Code: 200)`;
       } else {
-        return `⚠️ 网络连通，但状态码异常: ${response.responseCode}\nURL: ${testUrl}`;
+        return `⚠️ 网络连通但异常: ${response.responseCode}`;
       }
-
     } catch (err) {
-      // 捕获底层网络错误
-      const code = err.code ? `Code: ${err.code}` : 'No Code';
-      const msg = err.message || 'Unknown Error';
-
-      // 常见错误分析
-      let advice = "";
-      if (code.includes("2300006") || msg.includes("Host")) advice = "-> DNS 解析失败，模拟器无网。请检查 Wifi 设置。";
-      else if (code.includes("2300005") || msg.includes("Timeout")) advice = "-> 连接超时，可能是被墙或网络极慢。";
-      else if (code.includes("SSL")) advice = "-> 证书校验失败 (模拟器常见问题)。";
-
-      return `❌ 网络连接失败\n${code}\n${msg}\n${advice}`;
+      return `❌ 网络不通: ${JSON.stringify(err)}`;
     }
   }
 }
