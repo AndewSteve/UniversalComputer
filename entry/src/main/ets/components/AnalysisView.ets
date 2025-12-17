@@ -172,7 +172,7 @@ export struct AnalysisView {
         .padding({ left: 20, right: 20 })
 
       // 诊断按钮
-      Button("网络诊断 (Ping cloudflare)", { type: ButtonType.Normal, stateEffect: true })
+      Button("网络诊断 (Ping Bing)", { type: ButtonType.Normal, stateEffect: true })
         .fontSize(12)
         .fontColor('#2D9CDB')
         .backgroundColor('transparent')

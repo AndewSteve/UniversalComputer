@@ -1,8 +1,6 @@
 // components/FormulaWebView.ets
 import { webview } from '@kit.ArkWeb';
 import { AppColors } from '../common/values/AppColors';
-import { AppColors } from '../common/values/AppColors';
-
 @Component
 export struct FormulaWebView {
   @Prop @Watch('onLatexChange') latexString: string;
