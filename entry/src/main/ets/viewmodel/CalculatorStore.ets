@@ -191,10 +191,11 @@ export class CalculatorStore {
     this.selectionEnd = newRange.end;
   }
 
+  private session: number = 0;
   /**
    * 尝试实时计算
    */
-  private tryRealTimeCalculation() {
+  private async tryRealTimeCalculation() {
     // 如果没有 Token，清空预览
     if (this.tokens.length === 0) {
       this.previewResult = "";
@@ -202,7 +203,12 @@ export class CalculatorStore {
     }
 
     // 调用服务
-    const result = CalculationService.evaluateRealTime(this.tokens, this.isDegree);
+    this.session++;
+    const cur = this.session;
+    const result = await CalculationService.evaluateAsync(this.tokens, this.isDegree);
+    if (cur != this.session) {
+      return;
+    }
 
     if (result !== null) {
       // 计算成功，显示 "= 结果"
@@ -212,13 +218,6 @@ export class CalculatorStore {
       // 这里留空，让 UI 显示空白或者 "..."
       this.previewResult = "";
     }
-  }
-
-  // 处理 EXECUTE (点击右下角对钩)
-  // 这是用户强制要求计算，此时可以处理更复杂的逻辑 (比如调用 Python 后端，或本地更强的引擎)
-  public handleExecute() {
-    // TODO: 这里处理带有 \int, \sum 的复杂计算
-    console.info("Full calculation triggered");
   }
 }
 

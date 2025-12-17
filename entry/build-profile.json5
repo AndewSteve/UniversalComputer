@@ -5,6 +5,11 @@
       "copyCodeResource": {
         "enable": false
       }
+    },
+    "sourceOption": {
+      "workers": [
+        "./src/main/ets/workers/MathWorker.ets"  // <--- 注册 Worker
+      ]
     }
   },
   "buildOptionSet": [
