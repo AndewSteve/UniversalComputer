@@ -7,6 +7,7 @@ import { RenderLogic } from './core/RenderLogic';
 import { SelectionLogic } from './core/SelectionLogic';
 import { HistoryLogic, EditorSnapshot } from './core/HistoryLogic'; // 假设你也把 History 拆了
 import { CalculationService } from './core/CalculationService';
+import { myLogger } from "../common/values/MyLogger";
 
 @Observed
 export class CalculatorStore {
@@ -15,18 +16,20 @@ export class CalculatorStore {
 
   public tokens: FormulaToken[] = [];
   public cursorIndex: number = 0;
-
-  // 选区相关
+  //
+  // // 选区相关
   public selectionStart: number = -1;
   public selectionEnd: number = -1;
-
-  // 历史管理 (可以直接在这里 new，或者也做成 static 工具)
+  //
+  // // 历史管理 (可以直接在这里 new，或者也做成 static 工具)
   private historyLogic: HistoryLogic = new HistoryLogic();
 
   // 【新增】角度模式状态 (false: Rad, true: Deg)
   public isDegree: boolean = false;
 
   constructor() {
+    console.info("this is console output");
+    myLogger.log("this is hilog output");
     this.tokens = [];
     this.cursorIndex = 0;
   }
@@ -121,11 +124,13 @@ export class CalculatorStore {
 
   // 渲染代理
   public getDisplayLatex(): string {
+    // return "";
     return RenderLogic.generateDisplayLatex(this.tokens, this.cursorIndex);
   }
 
   // 【新增】获取发给 AI 的纯净公式
   public getCleanLatex(): string {
+    // return "";
     return RenderLogic.generateCleanLatex(this.tokens);
   }
 
@@ -136,6 +141,7 @@ export class CalculatorStore {
   }
 
   public isIndexSelected(index: number): boolean {
+    // return false;
     // 如果没有选区，直接返回 false
     if (!this.hasSelection()) {
       return false;
@@ -145,6 +151,7 @@ export class CalculatorStore {
   }
 
   private hasSelection(): boolean {
+    // return false;
     return this.selectionStart !== -1 && this.selectionEnd !== -1 && this.selectionStart < this.selectionEnd;
   }
 

@@ -1,9 +1,9 @@
 import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
-import agconnect from '@hw-agconnect/api-ohos';
-import "@hw-agconnect/core-ohos";
-import "@hw-agconnect/function-ohos";
+// import agconnect from '@hw-agconnect/api-ohos';
+// import "@hw-agconnect/core-ohos";
+// import "@hw-agconnect/function-ohos";
 
 const DOMAIN = 0x0000;
 
@@ -12,7 +12,7 @@ export default class EntryAbility extends UIAbility {
     try {
       this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
       //务必保证resources/rawfile中包含agconnect-services.json文件
-      agconnect.instance().init(this.context.getApplicationContext());
+      // agconnect.instance().init(this.context.getApplicationContext());
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
     }

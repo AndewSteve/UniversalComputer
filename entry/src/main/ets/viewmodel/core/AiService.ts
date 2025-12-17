@@ -1,5 +1,5 @@
 // viewmodel/core/AiService.ts
-import agconnect from '@hw-agconnect/api-ohos';
+// import agconnect from '@hw-agconnect/api-ohos';
 import http from '@ohos.net.http';
 
 // 定义接口，方便其他文件复用
@@ -28,31 +28,31 @@ export class AiService {
     try {
       console.info(`[AGC] Calling Cloud Function: ${this.AGC_TRIGGER_URI}`);
 
-      const functionCallable = agconnect.function().wrap(AiService.AGC_TRIGGER_URI);
-
-      // 【关键修改】 DeepSeek 思考比较慢，建议设为 30s 或 60s
-      functionCallable.timeout = 60000;
-
-      const result = await functionCallable.call({
-        latex: latex
-      });
-
-      const responseBody = result.getValue();
-      // console.info(`[AGC] Response: ${JSON.stringify(responseBody)}`);
-
-      // 兼容 DeepSeek 的不同返回格式 (content 有时在 message 里，有时在 choices 里)
-      const deepSeekContent = responseBody.choices?.[0]?.message?.content || responseBody.content;
-
-      if (deepSeekContent) {
-        try {
-          const parsedData = JSON.parse(deepSeekContent) as AiResponse;
-          return { success: true, data: parsedData };
-        } catch (e) {
-          console.error("JSON Parse Error", e);
-          // 如果 AI 返回了不是 JSON 的纯文本（偶尔发生），也要友好提示
-          return { success: false, error: "AI 返回格式异常，请重试" };
-        }
-      }
+      // const functionCallable = agconnect.function().wrap(AiService.AGC_TRIGGER_URI);
+      //
+      // // 【关键修改】 DeepSeek 思考比较慢，建议设为 30s 或 60s
+      // functionCallable.timeout = 60000;
+      //
+      // const result = await functionCallable.call({
+      //   latex: latex
+      // });
+      //
+      // const responseBody = result.getValue();
+      // // console.info(`[AGC] Response: ${JSON.stringify(responseBody)}`);
+      //
+      // // 兼容 DeepSeek 的不同返回格式 (content 有时在 message 里，有时在 choices 里)
+      // const deepSeekContent = responseBody.choices?.[0]?.message?.content || responseBody.content;
+      //
+      // if (deepSeekContent) {
+      //   try {
+      //     const parsedData = JSON.parse(deepSeekContent) as AiResponse;
+      //     return { success: true, data: parsedData };
+      //   } catch (e) {
+      //     console.error("JSON Parse Error", e);
+      //     // 如果 AI 返回了不是 JSON 的纯文本（偶尔发生），也要友好提示
+      //     return { success: false, error: "AI 返回格式异常，请重试" };
+      //   }
+      // }
 
       return { success: false, error: "AI 未返回有效内容" };
 

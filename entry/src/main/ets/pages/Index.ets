@@ -1,5 +1,5 @@
 // pages/Index.ets
-import { CalculatorStore, calculatorStore } from '../viewmodel/CalculatorStore';
+import { calculatorStore, CalculatorStore } from '../viewmodel/CalculatorStore';
 import { MathKeyboard } from '../components/MathKeyboard';
 import { FormulaWebView } from '../components/FormulaWebView';
 import { FormulaView } from '../components/FormulaView';
@@ -216,6 +216,7 @@ struct Index {
 
   // 处理“完成”点击逻辑
   handleExecution() {
+    // return;
     const currentLatex = this.store.getCleanLatex(); // 或者用 getCleanLatex() 如果你加了的话
     if (!currentLatex || currentLatex.trim() === "") return;
 
