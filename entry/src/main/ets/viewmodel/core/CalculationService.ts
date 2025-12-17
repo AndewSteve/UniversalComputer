@@ -1,13 +1,32 @@
 // viewmodel/core/CalculationService.ts
 import { FormulaToken, TokenType } from '../../model/FormulaToken';
-import { evaluate, create, all } from 'mathjs';
+import { create, all } from 'mathjs';
+import { myLogger } from '../../common/values/MyLogger';
 
-const math = create(all, {
-  number: 'BigNumber',
-  precision: 64
-});
+
+// const math = create(all, {
+//   number: 'BigNumber',
+//   precision: 64
+// });
 
 export class CalculationService {
+
+  // 3. 定义一个静态变量来持有实例
+  private static mathInstance: any = null;
+
+  // 4. 新增获取实例的方法 (懒加载核心)
+  private static getMath() {
+    if (!this.mathInstance) {
+      console.info("[Math] Initializing MathJS engine...");
+      myLogger.log("[Math] Initializing MathJS engine...");
+      // 只有在第一次调用时才初始化，避免卡死启动流程
+      this.mathInstance = create(all, {
+        number: 'BigNumber',
+        precision: 64
+      });
+    }
+    return this.mathInstance;
+  }
 
   private static readonly COMPLEX_SYMBOLS = [
     '\\int', '\\sum', '\\lim', '\\prod', 'd', 'dx'
@@ -19,6 +38,12 @@ export class CalculationService {
   };
 
   static evaluateRealTime(tokens: FormulaToken[], isDegree: boolean): string | null {
+    console.info("DEBUG: 开始计算 evaluateRealTime"); // ✅ 确认是否进入
+    myLogger.log("DEBUG: 开始计算 evaluateRealTime");
+    // return null;
+
+    const math = this.getMath();
+
     // 1. 快速过滤复杂公式
     for (const t of tokens) {
       if (this.COMPLEX_SYMBOLS.includes(t.value)) return null;
@@ -76,8 +101,14 @@ export class CalculationService {
   private static parseExpr(tokens: FormulaToken[], start: number, end: number): { expression: string, nextIndex: number } {
     let expr = "";
     let i = start;
+    let loopCount = 0; // ✅ 防止死循环的保险丝
 
     while (i < end) {
+      loopCount++;
+      if (loopCount > 1000) { // 如果循环超过1000次，强制报错并退出
+        console.error("CRITICAL: parseExpr 死循环！强制跳出");
+        break;
+      }
       const token = tokens[i];
       const val = token.value;
 
@@ -294,6 +325,7 @@ export class CalculationService {
 
   private static formatResult(val: any): string {
     if (val === undefined || val === null) return "";
+    const math = this.getMath();
     return math.format(val, { precision: 10, lowerExp: -9, upperExp: 9 });
   }
 }
